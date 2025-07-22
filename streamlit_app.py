@@ -65,13 +65,13 @@ st.markdown("---")
 st.subheader("📈 Changes Since Previous Date")
 
 st.markdown("### ➕ New Assets")
-st.dataframe(new_assets.reset_index()[["name", "par_value", "market_value", "asset_type"]], use_container_width=True)
+st.dataframe(new_assets.reset_index()[["name", "par_value", "market_value", "asset_type"]], use_container_width=True, hide_index=True)
 
 st.markdown("### ➖ Removed Assets")
-st.dataframe(removed_assets.reset_index()[["name", "par_value", "market_value", "asset_type"]], use_container_width=True)
+st.dataframe(removed_assets.reset_index()[["name", "par_value", "market_value", "asset_type"]], use_container_width=True, hide_index=True)
 
 st.markdown("### 🔁 Par Value Changes")
-st.dataframe(par_changes.reset_index()[["name", "par_value_prev", "par_value", "par_change", "asset_type"]], use_container_width=True)
+st.dataframe(par_changes.reset_index()[["name", "par_value_prev", "par_value", "par_change", "asset_type"]], use_container_width=True, hide_index=True)
 
 # === Pie or % Breakdown ===
 st.markdown("---")
@@ -105,16 +105,25 @@ aos_df["price_pct_change"] = aos_df.groupby("name")["price"].pct_change() * 100
 aos_df["market_value_change"] = aos_df.groupby("name")["market_value"].diff()
 
 st.markdown("### 📋 Asset-Level Price and Value Movements")
+
+# Filter to show only the selected current date
+aos_current_date = aos_df[aos_df["date"].dt.date == selected_date].copy()
+
+# Format the date column
+aos_current_date["date_formatted"] = aos_current_date["date"].dt.strftime("%m/%d/%Y")
+
 st.dataframe(
-    aos_df[
-        ["date", "name", "market_value", "par_value", "price", "price_pct_change", "market_value_change"]
-    ].sort_values("date", ascending=False).reset_index(drop=True),
-    use_container_width=True
+    aos_current_date[
+        ["date_formatted", "name", "market_value", "par_value", "price", "price_pct_change", "market_value_change"]
+    ].rename(columns={"date_formatted": "date"}),
+    use_container_width=True,
+    hide_index=True
 )
 
 # === Custom Index Calculation ===
 st.markdown("### 📈 Custom Index: Weighted AOS Holdings")
 
+st.markdown("#### AP Fides, AP Hermes, and AP Maia prices, weighted by market value")
 index_assets = [
     "AP FIDES HOLDINGS I LLC 6 11/30/2048",
     "AP HERMES HOLDINGS I LLC 6.25 07/25/2048",
@@ -123,7 +132,17 @@ index_assets = [
 
 index_df = aos_df[aos_df["name"].isin(index_assets)].copy()
 
-# Sum market value per date
+# Create a mapping for cleaner names
+name_mapping = {
+    "AP FIDES HOLDINGS I LLC 6 11/30/2048": "AP Fides",
+    "AP HERMES HOLDINGS I LLC 6.25 07/25/2048": "AP Hermes",
+    "AP MAIA HOLDINGS I LLC 5.5 07/28/2047": "AP Maia"
+}
+
+# Add clean names for individual asset tracking
+index_df["clean_name"] = index_df["name"].map(name_mapping)
+
+# Calculate weighted index
 index_df["weight"] = index_df["market_value"]
 index_df["price_weighted"] = index_df["price"] * index_df["weight"]
 
@@ -132,6 +151,35 @@ index_daily = index_df.groupby("date").agg(
     weighted_price=("price_weighted", "sum")
 ).reset_index()
 
-index_daily["index_value"] = index_daily["weighted_price"] / index_daily["total_mv"]
+index_daily["Weighted Index"] = index_daily["weighted_price"] / index_daily["total_mv"]
 
-st.line_chart(index_daily.set_index("date")["index_value"])
+# Prepare individual asset prices for charting
+individual_prices = index_df.pivot_table(
+    index="date", 
+    columns="clean_name", 
+    values="price", 
+    aggfunc="first"
+).reset_index()
+
+# Combine weighted index with individual asset prices
+chart_data = individual_prices.merge(
+    index_daily[["date", "Weighted Index"]], 
+    on="date", 
+    how="left"
+)
+
+# Display the combined chart with custom y-axis range
+chart_data_melted = chart_data.melt(
+    id_vars=["date"], 
+    var_name="Asset", 
+    value_name="Price"
+)
+
+line_chart = alt.Chart(chart_data_melted).mark_line().encode(
+    x=alt.X("date:T", title="Date"),
+    y=alt.Y("Price:Q", title="Price", scale=alt.Scale(domain=[100, chart_data_melted["Price"].max() * 1.02])),
+    color=alt.Color("Asset:N", title="Asset"),
+    tooltip=["date:T", "Asset:N", "Price:Q"]
+).properties(height=400)
+
+st.altair_chart(line_chart, use_container_width=True)
