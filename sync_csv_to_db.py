@@ -5,7 +5,7 @@ import sqlite3
 import sys
 
 # === CONFIG ===
-csv_file = "20250722PRIV.csv"
+csv_file = "20250723PRIV.csv"
 db_file = "priv_data.db"
 
 # Load CSV
