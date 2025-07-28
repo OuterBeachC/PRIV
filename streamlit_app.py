@@ -37,10 +37,14 @@ df_current = df[(df["date"].dt.date == selected_date) & (df["asset_breakdown"].i
 df_previous = df[(df["date"].dt.date == previous_date) & (df["asset_breakdown"].isin(selected_types))] if previous_date else pd.DataFrame(columns=df.columns)
 
 # === Index for Comparison ===
-index_cols = ["identifier", "name"]
+# Create a composite key using identifier, but fallback to name when identifier is "-"
+def create_composite_key(df):
+    df = df.copy()
+    df['composite_key'] = df.apply(lambda row: row['name'] if row['identifier'] == '-' else row['identifier'], axis=1)
+    return df.set_index('composite_key')
 
-df_current_indexed = df_current.set_index(index_cols)
-df_previous_indexed = df_previous.set_index(index_cols)
+df_current_indexed = create_composite_key(df_current)
+df_previous_indexed = create_composite_key(df_previous)
 
 # === Asset Comparison ===
 new_assets = df_current_indexed[~df_current_indexed.index.isin(df_previous_indexed.index)]
