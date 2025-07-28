@@ -203,7 +203,7 @@ if weekly_data:
     
     # Create stacked bar chart
     stacked_bar_chart = alt.Chart(weekly_summary).mark_bar().encode(
-        x=alt.X("week:N", title="Week", sort=alt.SortField("week", order="descending")),
+        x=alt.X("week:N", title="Week", sort=alt.SortField("week", order="ascending")),
         y=alt.Y("par_value:Q", title="Average Par Value"),
         color=alt.Color("clean_name:N", title="Asset"),
         tooltip=["week:N", "clean_name:N", "par_value:Q"]
