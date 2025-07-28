@@ -120,6 +120,30 @@ st.dataframe(
     hide_index=True
 )
 
+# === AOS Corporate Finance Pie Chart ===
+st.markdown("### 🥧 AOS Corporate Finance Asset Breakdown")
+
+# Create pie chart data for AOS Corporate Finance assets
+aos_pie_data = aos_current_date.copy()
+aos_pie_data["percentage"] = aos_pie_data["market_value"] / aos_pie_data["market_value"].sum() * 100
+
+# Create a mapping for cleaner names for the pie chart
+pie_name_mapping = {
+    "AP FIDES HOLDINGS I LLC 6 11/30/2048": "AP Fides",
+    "AP HERMES HOLDINGS I LLC 6.25 07/25/2048": "AP Hermes",
+    "AP MAIA HOLDINGS I LLC 5.5 07/28/2047": "AP Maia"
+}
+
+aos_pie_data["clean_name"] = aos_pie_data["name"].map(pie_name_mapping).fillna(aos_pie_data["name"])
+
+pie_chart = alt.Chart(aos_pie_data).mark_arc(innerRadius=50).encode(
+    theta=alt.Theta("market_value:Q", title="Market Value"),
+    color=alt.Color("clean_name:N", title="Asset"),
+    tooltip=["clean_name:N", "market_value:Q", "percentage:Q"]
+).properties(height=400)
+
+st.altair_chart(pie_chart, use_container_width=True)
+
 # === Custom Index Calculation ===
 st.markdown("### 📈 Custom Index: Weighted AOS Holdings")
 
@@ -183,3 +207,23 @@ line_chart = alt.Chart(chart_data_melted).mark_line().encode(
 ).properties(height=400)
 
 st.altair_chart(line_chart, use_container_width=True)
+
+# === Last 5 Business Days Price Chart ===
+st.markdown("### 📈 AP Holdings Prices - Last 5 Business Days")
+
+# Get the last 5 business days from available dates
+sorted_dates = sorted(df["date"].dt.date.unique(), reverse=True)
+last_5_dates = sorted_dates[:5]
+
+# Filter index data for last 5 business days
+last_5_df = index_df[index_df["date"].dt.date.isin(last_5_dates)].copy()
+
+# Create the chart for last 5 business days
+last_5_chart = alt.Chart(last_5_df).mark_line(point=True).encode(
+    x=alt.X("date:T", title="Date"),
+    y=alt.Y("price:Q", title="Price", scale=alt.Scale(domain=[last_5_df["price"].min() * 0.99, last_5_df["price"].max() * 1.01])),
+    color=alt.Color("clean_name:N", title="Asset"),
+    tooltip=["date:T", "clean_name:N", "price:Q"]
+).properties(height=400)
+
+st.altair_chart(last_5_chart, use_container_width=True)
