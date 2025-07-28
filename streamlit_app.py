@@ -29,12 +29,12 @@ selected_date = st.sidebar.selectbox("Current Date", available_dates)
 current_idx = available_dates.index(selected_date)
 previous_date = available_dates[current_idx + 1] if current_idx + 1 < len(available_dates) else None
 
-asset_types = df["asset_type"].dropna().unique()
+asset_types = df["asset_breakdown"].dropna().unique()
 selected_types = st.sidebar.multiselect("Asset Types", asset_types, default=asset_types)
 
 # === Filter Data by Type and Date ===
-df_current = df[(df["date"].dt.date == selected_date) & (df["asset_type"].isin(selected_types))]
-df_previous = df[(df["date"].dt.date == previous_date) & (df["asset_type"].isin(selected_types))] if previous_date else pd.DataFrame(columns=df.columns)
+df_current = df[(df["date"].dt.date == selected_date) & (df["asset_breakdown"].isin(selected_types))]
+df_previous = df[(df["date"].dt.date == previous_date) & (df["asset_breakdown"].isin(selected_types))] if previous_date else pd.DataFrame(columns=df.columns)
 
 # === Index for Comparison ===
 index_cols = ["identifier", "name"]
@@ -65,25 +65,25 @@ st.markdown("---")
 st.subheader("📈 Changes Since Previous Date")
 
 st.markdown("### ➕ New Assets")
-st.dataframe(new_assets.reset_index()[["name", "par_value", "market_value", "asset_type"]], use_container_width=True, hide_index=True)
+st.dataframe(new_assets.reset_index()[["name", "par_value", "market_value", "asset_breakdown"]], use_container_width=True, hide_index=True)
 
 st.markdown("### ➖ Removed Assets")
-st.dataframe(removed_assets.reset_index()[["name", "par_value", "market_value", "asset_type"]], use_container_width=True, hide_index=True)
+st.dataframe(removed_assets.reset_index()[["name", "par_value", "market_value", "asset_breakdown"]], use_container_width=True, hide_index=True)
 
 st.markdown("### 🔁 Par Value Changes")
-st.dataframe(par_changes.reset_index()[["name", "par_value_prev", "par_value", "par_change", "asset_type"]], use_container_width=True, hide_index=True)
+st.dataframe(par_changes.reset_index()[["name", "par_value_prev", "par_value", "par_change", "asset_breakdown"]], use_container_width=True, hide_index=True)
 
 # === Pie or % Breakdown ===
 st.markdown("---")
 st.subheader("📊 Market Value Breakdown by Asset Type")
 
-df_chart = df_current.groupby("asset_type")["market_value"].sum().reset_index()
+df_chart = df_current.groupby("asset_breakdown")["market_value"].sum().reset_index()
 df_chart["percentage"] = df_chart["market_value"] / df_chart["market_value"].sum() * 100
 
 bar_chart = alt.Chart(df_chart).mark_bar().encode(
-    x=alt.X("asset_type", sort="-y", title="Asset Type"),
+    x=alt.X("asset_breakdown", sort="-y", title="Asset Type"),
     y=alt.Y("percentage", title="Market %"),
-    tooltip=["asset_type", "percentage"]
+    tooltip=["asset_breakdown", "percentage"]
 ).properties(height=400)
 
 st.altair_chart(bar_chart, use_container_width=True)
@@ -93,7 +93,7 @@ st.markdown("---")
 st.subheader("🏦 AOS Corporate Finance Analysis")
 
 # Filter to AOS assets only
-aos_df = df[df["asset_type"] == "AOS Corporate Finance"].copy()
+aos_df = df[df["asset_breakdown"] == "AOS Corporate Finance"].copy()
 aos_df["date"] = pd.to_datetime(aos_df["date"])
 aos_df.sort_values(["name", "date"], inplace=True)
 
