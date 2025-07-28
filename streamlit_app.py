@@ -148,6 +148,52 @@ pie_chart = alt.Chart(aos_pie_data).mark_arc(innerRadius=50).encode(
 
 st.altair_chart(pie_chart, use_container_width=True)
 
+# === AOS Corporate Finance Par Value Over Time ===
+st.markdown("### 📊 AOS Corporate Finance Par Value - Last 30/60/90 Days")
+
+# Get the last 30, 60, and 90 days from available dates
+all_dates = sorted(df["date"].dt.date.unique(), reverse=True)
+last_30_dates = all_dates[:30] if len(all_dates) >= 30 else all_dates
+last_60_dates = all_dates[:60] if len(all_dates) >= 60 else all_dates
+last_90_dates = all_dates[:90] if len(all_dates) >= 90 else all_dates
+
+# Create datasets for each time period
+def create_period_data(dates, period_name):
+    period_df = aos_df[aos_df["date"].dt.date.isin(dates)].copy()
+    period_df["period"] = period_name
+    return period_df
+
+# Combine data for all three periods
+periods_data = []
+if len(all_dates) >= 30:
+    periods_data.append(create_period_data(last_30_dates, "Last 30 Days"))
+if len(all_dates) >= 60:
+    periods_data.append(create_period_data(last_60_dates, "Last 60 Days"))
+if len(all_dates) >= 90:
+    periods_data.append(create_period_data(last_90_dates, "Last 90 Days"))
+
+if periods_data:
+    combined_periods_df = pd.concat(periods_data, ignore_index=True)
+    
+    # Add clean names for better visualization
+    combined_periods_df["clean_name"] = combined_periods_df["name"].map(pie_name_mapping).fillna(combined_periods_df["name"])
+    
+    # Aggregate par values by period and asset
+    stacked_data = combined_periods_df.groupby(["period", "clean_name", "date"])["par_value"].sum().reset_index()
+    stacked_summary = stacked_data.groupby(["period", "clean_name"])["par_value"].mean().reset_index()
+    
+    # Create stacked bar chart
+    stacked_bar_chart = alt.Chart(stacked_summary).mark_bar().encode(
+        x=alt.X("period:N", title="Time Period", sort=["Last 30 Days", "Last 60 Days", "Last 90 Days"]),
+        y=alt.Y("par_value:Q", title="Average Par Value"),
+        color=alt.Color("clean_name:N", title="Asset"),
+        tooltip=["period:N", "clean_name:N", "par_value:Q"]
+    ).properties(height=400)
+    
+    st.altair_chart(stacked_bar_chart, use_container_width=True)
+else:
+    st.info("Not enough historical data available for time period analysis.")
+
 # === Custom Index Calculation ===
 st.markdown("### 📈 Custom Index: Weighted AOS Holdings")
 
