@@ -149,50 +149,69 @@ pie_chart = alt.Chart(aos_pie_data).mark_arc(innerRadius=50).encode(
 st.altair_chart(pie_chart, use_container_width=True)
 
 # === AOS Corporate Finance Par Value Over Time ===
-st.markdown("### 📊 AOS Corporate Finance Par Value - Last 30/60/90 Days")
+st.markdown("### 📊 AOS Corporate Finance Par Value - Weekly Breakdown")
 
-# Get the last 30, 60, and 90 days from available dates
+# Enhanced name mapping for all AOS Corporate Finance assets
+enhanced_name_mapping = {
+    "AP FIDES HOLDINGS I LLC 6 11/30/2048": "AP Fides",
+    "AP HERMES HOLDINGS I LLC 6.25 07/25/2048": "AP Hermes", 
+    "AP MAIA HOLDINGS I LLC 5.5 07/28/2047": "AP Maia",
+    # Add more mappings as needed - you can extend this based on your other asset names
+    # Example patterns (adjust based on your actual data):
+    # "AP ATLAS HOLDINGS I LLC": "AP Atlas",
+    # "AP TITAN HOLDINGS I LLC": "AP Titan",
+}
+
+# Get all available dates and organize into weeks
 all_dates = sorted(df["date"].dt.date.unique(), reverse=True)
-last_30_dates = all_dates[:30] if len(all_dates) >= 30 else all_dates
-last_60_dates = all_dates[:60] if len(all_dates) >= 60 else all_dates
-last_90_dates = all_dates[:90] if len(all_dates) >= 90 else all_dates
 
-# Create datasets for each time period
-def create_period_data(dates, period_name):
-    period_df = aos_df[aos_df["date"].dt.date.isin(dates)].copy()
-    period_df["period"] = period_name
-    return period_df
+# Create weekly groupings (every 5 business days)
+weekly_data = []
+week_size = 5  # 5 business days per week
 
-# Combine data for all three periods
-periods_data = []
-if len(all_dates) >= 30:
-    periods_data.append(create_period_data(last_30_dates, "Last 30 Days"))
-if len(all_dates) >= 60:
-    periods_data.append(create_period_data(last_60_dates, "Last 60 Days"))
-if len(all_dates) >= 90:
-    periods_data.append(create_period_data(last_90_dates, "Last 90 Days"))
-
-if periods_data:
-    combined_periods_df = pd.concat(periods_data, ignore_index=True)
+for week_num in range(min(12, len(all_dates) // week_size)):  # Show up to 12 weeks
+    start_idx = week_num * week_size
+    end_idx = min(start_idx + week_size, len(all_dates))
+    week_dates = all_dates[start_idx:end_idx]
     
-    # Add clean names for better visualization
-    combined_periods_df["clean_name"] = combined_periods_df["name"].map(pie_name_mapping).fillna(combined_periods_df["name"])
+    if week_dates:
+        week_df = aos_df[aos_df["date"].dt.date.isin(week_dates)].copy()
+        week_start = min(week_dates)
+        week_end = max(week_dates)
+        
+        # Format the date range for display
+        if week_start == week_end:
+            week_label = week_start.strftime("%m/%d/%y")
+        else:
+            week_label = f"{week_start.strftime('%m/%d/%y')} - {week_end.strftime('%m/%d/%y')}"
+        
+        week_df["week"] = week_label
+        week_df["week_start"] = week_start
+        week_df["week_end"] = week_end
+        weekly_data.append(week_df)
+
+if weekly_data:
+    combined_weekly_df = pd.concat(weekly_data, ignore_index=True)
     
-    # Aggregate par values by period and asset
-    stacked_data = combined_periods_df.groupby(["period", "clean_name", "date"])["par_value"].sum().reset_index()
-    stacked_summary = stacked_data.groupby(["period", "clean_name"])["par_value"].mean().reset_index()
+    # Apply enhanced name mapping
+    combined_weekly_df["clean_name"] = combined_weekly_df["name"].map(enhanced_name_mapping).fillna(
+        combined_weekly_df["name"].str.replace(r" \d+\.?\d* \d{2}/\d{2}/\d{4}", "", regex=True).str.replace(" LLC", "").str.title()
+    )
+    
+    # Aggregate par values by week and asset
+    weekly_summary = combined_weekly_df.groupby(["week", "clean_name"])["par_value"].mean().reset_index()
     
     # Create stacked bar chart
-    stacked_bar_chart = alt.Chart(stacked_summary).mark_bar().encode(
-        x=alt.X("period:N", title="Time Period", sort=["Last 30 Days", "Last 60 Days", "Last 90 Days"]),
+    stacked_bar_chart = alt.Chart(weekly_summary).mark_bar().encode(
+        x=alt.X("week:N", title="Week", sort=alt.SortField("week", order="descending")),
         y=alt.Y("par_value:Q", title="Average Par Value"),
         color=alt.Color("clean_name:N", title="Asset"),
-        tooltip=["period:N", "clean_name:N", "par_value:Q"]
+        tooltip=["week:N", "clean_name:N", "par_value:Q"]
     ).properties(height=400)
     
     st.altair_chart(stacked_bar_chart, use_container_width=True)
 else:
-    st.info("Not enough historical data available for time period analysis.")
+    st.info("Not enough historical data available for weekly analysis.")
 
 # === Custom Index Calculation ===
 st.markdown("### 📈 Custom Index: Weighted AOS Holdings")
