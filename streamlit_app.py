@@ -281,13 +281,12 @@ chart_data_melted = chart_data.melt(
     value_name="Price"
 )
 
-# Create different mark types for different series
-base_chart = alt.Chart(chart_data_melted)
+# Create separate datasets for main lines and moving averages
+main_data = chart_data_melted[~chart_data_melted['Asset'].isin(['30-Day MA', '60-Day MA', '200-Day MA'])].copy()
+ma_data = chart_data_melted[chart_data_melted['Asset'].isin(['30-Day MA', '60-Day MA', '200-Day MA'])].copy()
 
 # Individual assets and weighted index as solid lines
-main_lines = base_chart.transform_filter(
-    (alt.expr.datum.Asset != '30-Day MA') & (alt.expr.datum.Asset != '60-Day MA') & (alt.expr.datum.Asset != '200-Day MA')
-).mark_line().encode(
+main_lines = alt.Chart(main_data).mark_line().encode(
     x=alt.X("date:T", title="Date"),
     y=alt.Y("Price:Q", title="Price", scale=alt.Scale(domain=[100, chart_data_melted["Price"].max() * 1.02])),
     color=alt.Color("Asset:N", title="Asset"),
@@ -295,9 +294,7 @@ main_lines = base_chart.transform_filter(
 )
 
 # Moving averages as dashed lines
-ma_lines = base_chart.transform_filter(
-    (alt.expr.datum.Asset == '30-Day MA') | (alt.expr.datum.Asset == '60-Day MA') | (alt.expr.datum.Asset == '200-Day MA')
-).mark_line(strokeDash=[5,5], opacity=0.7).encode(
+ma_lines = alt.Chart(ma_data).mark_line(strokeDash=[5,5], opacity=0.7).encode(
     x=alt.X("date:T", title="Date"),
     y=alt.Y("Price:Q", title="Price", scale=alt.Scale(domain=[100, chart_data_melted["Price"].max() * 1.02])),
     color=alt.Color("Asset:N", title="Asset", scale=alt.Scale(range=["#ff7f0e", "#2ca02c", "#d62728"])),
