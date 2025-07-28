@@ -5,7 +5,7 @@ import sqlite3
 import sys
 
 # === CONFIG ===
-csv_file = "PRIV Database 20250721.csv"
+csv_file = "PRIV Database 20250725.csv"
 db_file = "priv_data.db"
 
 # Load CSV
@@ -36,7 +36,7 @@ if df.empty:
 # Reorder columns to match DB
 columns = [
     "date", "name", "identifier", "sedol", "weight", "coupon",
-    "par_value", "market_value", "local_currency", "maturity", "asset_type"
+    "par_value", "market_value", "local_currency", "maturity", "asset_breakdown"
 ]
 
 # Insert remaining new rows

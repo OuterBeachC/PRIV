@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS financial_data (
     market_value REAL,
     local_currency TEXT,
     maturity TEXT,
-    asset_type TEXT
+    asset_breakdown TEXT
 )
 """)
 
