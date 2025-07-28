@@ -322,6 +322,12 @@ last_5_chart = alt.Chart(last_5_df).mark_line(point=True).encode(
     y=alt.Y("price:Q", title="Price", scale=alt.Scale(domain=[last_5_df["price"].min() * 0.99, last_5_df["price"].max() * 1.01])),
     color=alt.Color("clean_name:N", title="Asset"),
     tooltip=["date:T", "clean_name:N", "price:Q"]
-)
+).properties(height=400).configure_view(fill='white')
 
 st.altair_chart(last_5_chart, use_container_width=True)
+
+# === Disclosure ===
+st.markdown("---")
+st.markdown("""
+**Disclosure:** All information displayed here is public and is not in any way to be construed as investment advice or solicitation. All data is sourced from https://www.ssga.com/us/en/intermediary/etfs/spdr-ssga-ig-public-private-credit-etf-priv and we make no claims to veracity or accuracy of the data. It is presented for academic and research purposes only.
+""")
