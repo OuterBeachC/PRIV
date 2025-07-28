@@ -88,7 +88,7 @@ bar_chart = alt.Chart(df_chart).mark_bar().encode(
     x=alt.X("asset_breakdown", sort="-y", title="Asset Type"),
     y=alt.Y("percentage", title="Market %"),
     tooltip=["asset_breakdown", "percentage"]
-).properties(height=400).configure_view(fill='lightgray')
+).properties(height=400)
 
 st.altair_chart(bar_chart, use_container_width=True)
 
@@ -144,7 +144,7 @@ pie_chart = alt.Chart(aos_pie_data).mark_arc(innerRadius=50).encode(
     theta=alt.Theta("market_value:Q", title="Market Value"),
     color=alt.Color("clean_name:N", title="Asset"),
     tooltip=["clean_name:N", "market_value:Q", "percentage:Q"]
-).properties(height=400).configure_view(fill='lightgray')
+).properties(height=400)
 
 st.altair_chart(pie_chart, use_container_width=True)
 
@@ -302,7 +302,7 @@ ma_lines = alt.Chart(ma_data).mark_line(strokeDash=[5,5], opacity=0.7).encode(
 )
 
 # Combine both chart types
-combined_chart = (main_lines + ma_lines).properties(height=400).configure_view(fill='lightgray')
+combined_chart = (main_lines + ma_lines).properties(height=400)
 
 st.altair_chart(combined_chart, use_container_width=True)
 
@@ -322,6 +322,6 @@ last_5_chart = alt.Chart(last_5_df).mark_line(point=True).encode(
     y=alt.Y("price:Q", title="Price", scale=alt.Scale(domain=[last_5_df["price"].min() * 0.99, last_5_df["price"].max() * 1.01])),
     color=alt.Color("clean_name:N", title="Asset"),
     tooltip=["date:T", "clean_name:N", "price:Q"]
-).properties(height=400).configure_view(fill='lightgray')
+).properties(height=400).configure_view(fill='white')
 
 st.altair_chart(last_5_chart, use_container_width=True)
