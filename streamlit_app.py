@@ -203,7 +203,7 @@ if weekly_data:
     
     # Create stacked bar chart
     stacked_bar_chart = alt.Chart(weekly_summary).mark_bar().encode(
-        x=alt.X("week:N", title="Week", sort=alt.SortField("week", order="ascending")),
+        x=alt.X("week:N", title="Week", sort=alt.SortField("week", order="descending")),
         y=alt.Y("par_value:Q", title="Average Par Value"),
         color=alt.Color("clean_name:N", title="Asset"),
         tooltip=["week:N", "clean_name:N", "par_value:Q"]
@@ -254,12 +254,25 @@ individual_prices = index_df.pivot_table(
     aggfunc="first"
 ).reset_index()
 
-# Combine weighted index with individual asset prices
+# Calculate moving averages for the Weighted Index
+index_daily_sorted = index_daily.sort_values("date").copy()
+index_daily_sorted["MA_30"] = index_daily_sorted["Weighted Index"].rolling(window=30, min_periods=1).mean()
+index_daily_sorted["MA_60"] = index_daily_sorted["Weighted Index"].rolling(window=60, min_periods=1).mean()
+index_daily_sorted["MA_200"] = index_daily_sorted["Weighted Index"].rolling(window=200, min_periods=1).mean()
+
+# Combine weighted index with individual asset prices and moving averages
 chart_data = individual_prices.merge(
-    index_daily[["date", "Weighted Index"]], 
+    index_daily_sorted[["date", "Weighted Index", "MA_30", "MA_60", "MA_200"]], 
     on="date", 
     how="left"
 )
+
+# Rename moving averages for better display
+chart_data = chart_data.rename(columns={
+    "MA_30": "30-Day MA",
+    "MA_60": "60-Day MA", 
+    "MA_200": "200-Day MA"
+})
 
 # Display the combined chart with custom y-axis range
 chart_data_melted = chart_data.melt(
@@ -268,14 +281,33 @@ chart_data_melted = chart_data.melt(
     value_name="Price"
 )
 
-line_chart = alt.Chart(chart_data_melted).mark_line().encode(
+# Create different mark types for different series
+base_chart = alt.Chart(chart_data_melted)
+
+# Individual assets and weighted index as solid lines
+main_lines = base_chart.transform_filter(
+    alt.expr.datum.Asset != '30-Day MA' & alt.expr.datum.Asset != '60-Day MA' & alt.expr.datum.Asset != '200-Day MA'
+).mark_line().encode(
     x=alt.X("date:T", title="Date"),
     y=alt.Y("Price:Q", title="Price", scale=alt.Scale(domain=[100, chart_data_melted["Price"].max() * 1.02])),
     color=alt.Color("Asset:N", title="Asset"),
     tooltip=["date:T", "Asset:N", "Price:Q"]
-).properties(height=400)
+)
 
-st.altair_chart(line_chart, use_container_width=True)
+# Moving averages as dashed lines
+ma_lines = base_chart.transform_filter(
+    alt.expr.datum.Asset == '30-Day MA' | alt.expr.datum.Asset == '60-Day MA' | alt.expr.datum.Asset == '200-Day MA'
+).mark_line(strokeDash=[5,5], opacity=0.7).encode(
+    x=alt.X("date:T", title="Date"),
+    y=alt.Y("Price:Q", title="Price", scale=alt.Scale(domain=[100, chart_data_melted["Price"].max() * 1.02])),
+    color=alt.Color("Asset:N", title="Asset", scale=alt.Scale(range=["#ff7f0e", "#2ca02c", "#d62728"])),
+    tooltip=["date:T", "Asset:N", "Price:Q"]
+)
+
+# Combine both chart types
+combined_chart = (main_lines + ma_lines).properties(height=400)
+
+st.altair_chart(combined_chart, use_container_width=True)
 
 # === Last 5 Business Days Price Chart ===
 st.markdown("### 📈 AP Holdings Prices - Last 5 Business Days")
