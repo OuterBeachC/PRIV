@@ -39,11 +39,11 @@ def extract_date_from_b3(input_file, sheet_name=0):
         
         # Try to parse the date
         if isinstance(date_value, pd.Timestamp):
-            formatted_date = date_value.strftime("%Y-%m-%d")
+            formatted_date = date_value.strftime("%m/%d/%Y")
         else:
             try:
                 parsed_date = pd.to_datetime(date_str)
-                formatted_date = parsed_date.strftime("%Y-%m-%d")
+                formatted_date = parsed_date.strftime("%m/%d/%Y")
             except:
                 print(f"Warning: Could not parse date '{date_str}'")
                 return None
@@ -55,7 +55,7 @@ def extract_date_from_b3(input_file, sheet_name=0):
         print(f"Error extracting date from B3: {str(e)}")
         return None
 
-def convert_xlsx_to_csv(input_file, output_file=None, skip_rows=4, skip_footer=0, sheet_name=0):
+def convert_xlsx_to_csv(input_file, output_file=None, skip_rows=4, skip_footer=37, sheet_name=0):
     """
     Convert XLSX file to CSV while trimming rows from top and/or bottom.
     
@@ -84,16 +84,17 @@ def convert_xlsx_to_csv(input_file, output_file=None, skip_rows=4, skip_footer=0
             try:
                 # Use the extracted date for filename
                 if extracted_date:
-                    date_str = extracted_date.replace("-", "")
+                    # Convert date format from MM/DD/YY to MMDDYY for filename
+                    date_str = extracted_date.replace("/", "")
                 else:
                     # Fallback to current date
                     print("Warning: Using current date for filename")
                     from datetime import datetime
-                    date_str = datetime.now().strftime("%Y%m%d")
+                    date_str = datetime.now().strftime("%m%d%Y")
                 
-                # Create filename with PRIV prefix and date
+                # Create filename with date and PRIV suffix
                 input_dir = os.path.dirname(input_file)
-                output_file = os.path.join(input_dir, f"PRIV Database {date_str}.csv")
+                output_file = os.path.join(input_dir, f"{date_str}PRIV.csv")
                 print(f"Generated CSV filename: {output_file}")
                 
             except Exception as e:
@@ -246,8 +247,8 @@ def main():
                        help="Path to SQLite database file (default: priv_data.db)")
     parser.add_argument("-s", "--skip-rows", type=int, default=4, 
                        help="Number of rows to skip from top (XLSX only, default: 4)")
-    parser.add_argument("-f", "--skip-footer", type=int, default=0, 
-                       help="Number of rows to skip from bottom (XLSX only)")
+    parser.add_argument("-f", "--skip-footer", type=int, default=37, 
+                       help="Number of rows to skip from bottom (XLSX only, default: 37)")
     parser.add_argument("-w", "--sheet", default=0, 
                        help="Sheet name or index to convert (XLSX only)")
     parser.add_argument("--keep-csv", action="store_true", 
