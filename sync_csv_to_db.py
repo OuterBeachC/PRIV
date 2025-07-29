@@ -1,9 +1,10 @@
-# sync_csv_to_db.py (Enhanced with XLSX conversion)
+# sync_csv_to_db.py (Enhanced with XLSX conversion - FIXED)
 import pandas as pd
 import sqlite3
 import sys
 import os
 import argparse
+from datetime import datetime
 
 def extract_date_from_b3(input_file, sheet_name=0):
     """
@@ -14,7 +15,7 @@ def extract_date_from_b3(input_file, sheet_name=0):
         sheet_name (str/int): Sheet name or index (default: 0)
     
     Returns:
-        str: Formatted date string (YYYY-MM-DD) or None if extraction failed
+        str: Formatted date string (M/D/YYYY) or None if extraction failed
     """
     try:
         print(f"Extracting date from cell B3 in: {input_file}")
@@ -37,16 +38,44 @@ def extract_date_from_b3(input_file, sheet_name=0):
         print(f"Raw date value from B3: '{date_value}'")
         print(f"Cleaned date string: '{date_str}'")
         
-        # Try to parse the date
+        # Try to parse the date with multiple formats
+        date_formats = [
+            "%d-%b-%Y",      # 28-Jul-2025
+            "%d-%B-%Y",      # 28-July-2025
+            "%m/%d/%Y",      # 7/28/2025
+            "%m-%d-%Y",      # 7-28-2025
+            "%Y-%m-%d",      # 2025-07-28
+            "%d/%m/%Y",      # 28/7/2025
+            "%b %d, %Y",     # Jul 28, 2025
+            "%B %d, %Y",     # July 28, 2025
+        ]
+        
+        parsed_date = None
+        
+        # If it's already a pandas Timestamp, use it directly
         if isinstance(date_value, pd.Timestamp):
-            formatted_date = date_value.strftime("%m/%d/%Y")
+            parsed_date = date_value
         else:
-            try:
-                parsed_date = pd.to_datetime(date_str)
-                formatted_date = parsed_date.strftime("%m/%d/%Y")
-            except:
-                print(f"Warning: Could not parse date '{date_str}'")
-                return None
+            # Try parsing with different formats
+            for fmt in date_formats:
+                try:
+                    parsed_date = pd.to_datetime(date_str, format=fmt)
+                    print(f"Successfully parsed date using format: {fmt}")
+                    break
+                except:
+                    continue
+            
+            # If no format worked, try pandas' smart parsing
+            if parsed_date is None:
+                try:
+                    parsed_date = pd.to_datetime(date_str)
+                    print("Successfully parsed date using pandas auto-detection")
+                except:
+                    print(f"Warning: Could not parse date '{date_str}' with any known format")
+                    return None
+        
+        # Format as M/D/YYYY (removing leading zeros)
+        formatted_date = parsed_date.strftime("%-m/%-d/%Y") if os.name != 'nt' else parsed_date.strftime("%#m/%#d/%Y")
         
         print(f"Extracted date: {formatted_date}")
         return formatted_date
@@ -84,12 +113,15 @@ def convert_xlsx_to_csv(input_file, output_file=None, skip_rows=4, skip_footer=3
             try:
                 # Use the extracted date for filename
                 if extracted_date:
-                    # Convert date format from MM/DD/YY to MMDDYY for filename
-                    date_str = extracted_date.replace("/", "")
+                    # Convert date format from M/D/YYYY to MMDDYYYY for filename
+                    date_parts = extracted_date.split("/")
+                    month = date_parts[0].zfill(2)
+                    day = date_parts[1].zfill(2)
+                    year = date_parts[2]
+                    date_str = f"{month}{day}{year}"
                 else:
                     # Fallback to current date
                     print("Warning: Using current date for filename")
-                    from datetime import datetime
                     date_str = datetime.now().strftime("%m%d%Y")
                 
                 # Create filename with date and PRIV suffix
@@ -119,7 +151,9 @@ def convert_xlsx_to_csv(input_file, output_file=None, skip_rows=4, skip_footer=3
             df.loc[mask, 'Date'] = extracted_date  # Set date only for rows with data
             print(f"Added date to {mask.sum()} rows with data")
         else:
-            print("Warning: No date extracted from B3, date column will not be added")
+            print("ERROR: Could not extract date from B3. Cannot proceed without date.")
+            print("Please check that cell B3 contains a valid date in the format 'As of DD-MMM-YYYY'")
+            return None
         
         # Convert to CSV
         print(f"Converting to CSV: {output_file}")
@@ -184,7 +218,7 @@ def sync_csv_to_db(csv_file, db_file):
     
     # Extract all unique dates in the file
     csv_dates = df["date"].dropna().unique()
-    print(f"Found {len(csv_dates)} unique dates in CSV")
+    print(f"Found {len(csv_dates)} unique dates in CSV: {list(csv_dates)}")
     
     # Connect to DB
     conn = sqlite3.connect(db_file)
@@ -195,6 +229,8 @@ def sync_csv_to_db(csv_file, db_file):
         existing_dates = cursor.execute("SELECT DISTINCT date FROM financial_data").fetchall()
         existing_dates = set(date[0] for date in existing_dates)
         print(f"Found {len(existing_dates)} existing dates in database")
+        if existing_dates:
+            print(f"Existing dates: {sorted(list(existing_dates))}")
     except sqlite3.OperationalError as e:
         if "no such table" in str(e):
             print("Table 'financial_data' doesn't exist yet. All data will be inserted as new.")
@@ -203,12 +239,15 @@ def sync_csv_to_db(csv_file, db_file):
             raise e
     
     # Filter out rows with already existing dates
-    df = df[~df["date"].isin(existing_dates)]
+    new_data_mask = ~df["date"].isin(existing_dates)
+    df_new = df[new_data_mask]
     
-    if df.empty:
+    if df_new.empty:
         print("All dates in this CSV already exist in the database. No new data inserted.")
         conn.close()
         return True
+    
+    print(f"Found {len(df_new)} rows with new dates to insert")
     
     # Expected columns for the database
     expected_columns = [
@@ -217,23 +256,23 @@ def sync_csv_to_db(csv_file, db_file):
     ]
     
     # Check which expected columns are missing
-    missing_columns = [col for col in expected_columns if col not in df.columns]
+    missing_columns = [col for col in expected_columns if col not in df_new.columns]
     if missing_columns:
         print(f"WARNING: Missing expected columns: {missing_columns}")
-        print("Available columns:", list(df.columns))
+        print("Available columns:", list(df_new.columns))
         
         # Only use columns that exist
-        available_columns = [col for col in expected_columns if col in df.columns]
+        available_columns = [col for col in expected_columns if col in df_new.columns]
         print(f"Using available columns: {available_columns}")
     else:
         available_columns = expected_columns
     
     # Insert remaining new rows
     try:
-        df[available_columns].to_sql("financial_data", conn, if_exists="append", index=False)
+        df_new[available_columns].to_sql("financial_data", conn, if_exists="append", index=False)
         conn.close()
         
-        print(f"✅ Inserted {len(df)} new rows into the database.")
+        print(f"✅ Inserted {len(df_new)} new rows into the database.")
         return True
     except Exception as e:
         print(f"❌ Error inserting data into database: {str(e)}")
