@@ -1,10 +1,29 @@
-# sync_csv_to_db.py (Enhanced with XLSX conversion - FIXED)
+# sync_csv_to_db.py (Enhanced with XLSX conversion and auto-download)
 import pandas as pd
 import sqlite3
 import sys
 import os
 import argparse
 from datetime import datetime
+import requests
+
+def download_latest_priv_xlsx(output_path):
+    url = "https://www.ssga.com/us/en/intermediary/library-content/products/fund-data/etfs/us/holdings-daily-us-en-priv.xlsx"
+    headers = {"User-Agent": "Mozilla/5.0"}
+    try:
+        print(f"Downloading latest PRIV XLSX from {url} ...")
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
+            with open(output_path, "wb") as f:
+                f.write(response.content)
+            print(f"Downloaded to {output_path}")
+            return True
+        else:
+            print(f"Failed to download file: {response.status_code}")
+            return False
+    except Exception as e:
+        print(f"Error downloading file: {e}")
+        return False
 
 def extract_date_from_b3(input_file, sheet_name=0):
     """
@@ -281,7 +300,7 @@ def sync_csv_to_db(csv_file, db_file):
 
 def main():
     parser = argparse.ArgumentParser(description="Sync CSV/XLSX data to SQLite database")
-    parser.add_argument("input_file", help="Path to input CSV or XLSX file")
+    parser.add_argument("input_file", help="Path to input CSV or XLSX file, or 'download' to fetch latest PRIV XLSX")
     parser.add_argument("-d", "--database", default="priv_data.db", 
                        help="Path to SQLite database file (default: priv_data.db)")
     parser.add_argument("-s", "--skip-rows", type=int, default=4, 
@@ -292,42 +311,44 @@ def main():
                        help="Sheet name or index to convert (XLSX only)")
     parser.add_argument("--keep-csv", action="store_true", 
                        help="Keep converted CSV file (don't delete after processing)")
-    
     args = parser.parse_args()
-    
-    input_file = args.input_file
+
+    # --- New: Download if requested ---
+    if args.input_file.lower() == "download":
+        xlsx_path = "holdings-daily-us-en-priv.xlsx"
+        if not download_latest_priv_xlsx(xlsx_path):
+            print("❌ Could not download latest XLSX. Exiting.")
+            sys.exit(1)
+        input_file = xlsx_path
+    else:
+        input_file = args.input_file
+
     db_file = args.database
     csv_file = input_file
     temp_csv_created = False
-    
+
     # Check if input file is XLSX
     if input_file.lower().endswith(('.xlsx', '.xls')):
         print("XLSX file detected. Converting to CSV first...")
-        
-        # Convert sheet argument to int if it's numeric
         try:
             sheet_name = int(args.sheet)
         except ValueError:
             sheet_name = args.sheet
-        
-        # Convert XLSX to CSV
         csv_file = convert_xlsx_to_csv(
             input_file=input_file,
             skip_rows=args.skip_rows,
             skip_footer=args.skip_footer,
             sheet_name=sheet_name
         )
-        
         if csv_file is None:
             print("❌ Failed to convert XLSX file. Exiting.")
             sys.exit(1)
-        
         temp_csv_created = True
         print()
-    
+
     # Sync CSV to database
     success = sync_csv_to_db(csv_file, db_file)
-    
+
     # Clean up temporary CSV file if it was created and not requested to keep
     if temp_csv_created and not args.keep_csv:
         try:
@@ -335,7 +356,7 @@ def main():
             print(f"Temporary CSV file '{csv_file}' removed.")
         except Exception as e:
             print(f"Warning: Could not remove temporary CSV file '{csv_file}': {e}")
-    
+
     if not success:
         sys.exit(1)
 
