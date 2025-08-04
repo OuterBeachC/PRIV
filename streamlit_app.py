@@ -4,6 +4,8 @@ import streamlit as st
 import pandas as pd
 import sqlite3
 import altair as alt
+from datetime import datetime
+import io
 
 st.set_page_config(layout="wide")
 st.title("📊 Financial Holdings: Day-over-Day Dashboard")
@@ -19,6 +21,39 @@ def load_data():
 
 df = load_data()
 
+# === CSV Export Functions ===
+def get_time_series_data(asset_name, start_date, end_date):
+    """Get time series data for a specific asset within date range"""
+    filtered_df = df[
+        (df["name"] == asset_name) & 
+        (df["date"].dt.date >= start_date) & 
+        (df["date"].dt.date <= end_date)
+    ].copy()
+    
+    # Sort by date
+    filtered_df = filtered_df.sort_values("date")
+    
+    # Calculate additional metrics
+    filtered_df["price"] = filtered_df["market_value"] / filtered_df["par_value"] * 100
+    filtered_df["price_change"] = filtered_df["price"].diff()
+    filtered_df["price_pct_change"] = filtered_df["price"].pct_change() * 100
+    filtered_df["market_value_change"] = filtered_df["market_value"].diff()
+    
+    return filtered_df
+
+def create_csv_download(dataframe, filename):
+    """Create CSV download link"""
+    csv_buffer = io.StringIO()
+    dataframe.to_csv(csv_buffer, index=False)
+    csv_data = csv_buffer.getvalue()
+    
+    return st.download_button(
+        label="📥 Download CSV",
+        data=csv_data,
+        file_name=filename,
+        mime="text/csv"
+    )
+
 # === Sidebar Filters ===
 st.sidebar.header("🔎 Filters")
 
@@ -31,6 +66,127 @@ previous_date = available_dates[current_idx + 1] if current_idx + 1 < len(availa
 
 asset_types = df["asset_breakdown"].dropna().unique()
 selected_types = st.sidebar.multiselect("Asset Types", asset_types, default=asset_types)
+
+# === CSV Export Section in Sidebar ===
+st.sidebar.markdown("---")
+st.sidebar.header("📥 CSV Export")
+
+# Asset selection for export
+unique_assets = sorted(df["name"].unique())
+selected_asset = st.sidebar.selectbox("Select Asset for Export", unique_assets)
+
+# Date range selection for export
+min_date = df["date"].dt.date.min()
+max_date = df["date"].dt.date.max()
+
+export_start_date = st.sidebar.date_input(
+    "Export Start Date", 
+    value=min_date,
+    min_value=min_date,
+    max_value=max_date
+)
+
+export_end_date = st.sidebar.date_input(
+    "Export End Date", 
+    value=max_date,
+    min_value=min_date,
+    max_value=max_date
+)
+
+# Export options
+export_columns = st.sidebar.multiselect(
+    "Select Columns to Export",
+    ["date", "name", "identifier", "par_value", "market_value", "asset_breakdown", "price", "price_change", "price_pct_change", "market_value_change"],
+    default=["date", "name", "par_value", "market_value", "price", "price_change", "price_pct_change"]
+)
+
+# Generate export data and download button
+if st.sidebar.button("Generate Export Data"):
+    if selected_asset and export_start_date <= export_end_date:
+        export_data = get_time_series_data(selected_asset, export_start_date, export_end_date)
+        
+        if not export_data.empty:
+            # Select only requested columns
+            export_data_filtered = export_data[export_columns].copy()
+            
+            # Format date for better readability
+            if "date" in export_columns:
+                export_data_filtered["date"] = export_data_filtered["date"].dt.strftime("%Y-%m-%d")
+            
+            # Store in session state for download
+            st.session_state.export_data = export_data_filtered
+            st.session_state.export_filename = f"{selected_asset.replace(' ', '_')}_{export_start_date}_{export_end_date}.csv"
+            
+            st.sidebar.success(f"✅ Export data generated! {len(export_data_filtered)} rows")
+        else:
+            st.sidebar.error("❌ No data found for selected criteria")
+    else:
+        st.sidebar.error("❌ Please check your date range")
+
+# Download button (only show if export data exists)
+if hasattr(st.session_state, 'export_data'):
+    st.sidebar.markdown("### Download Ready")
+    create_csv_download(st.session_state.export_data, st.session_state.export_filename)
+    
+    # Show preview of export data
+    with st.sidebar.expander("Preview Export Data"):
+        st.dataframe(st.session_state.export_data.head(10), use_container_width=True)
+
+# === Bulk Export Options ===
+st.sidebar.markdown("---")
+st.sidebar.header("📦 Bulk Export Options")
+
+bulk_export_type = st.sidebar.radio(
+    "Bulk Export Type",
+    ["All Data", "By Asset Type", "AOS Corporate Finance Only", "Date Range All Assets"]
+)
+
+if st.sidebar.button("Generate Bulk Export"):
+    bulk_data = None
+    bulk_filename = ""
+    
+    if bulk_export_type == "All Data":
+        bulk_data = df.copy()
+        bulk_data["price"] = bulk_data["market_value"] / bulk_data["par_value"] * 100
+        bulk_filename = f"all_financial_data_{datetime.now().strftime('%Y%m%d')}.csv"
+        
+    elif bulk_export_type == "By Asset Type":
+        selected_bulk_types = st.sidebar.multiselect("Select Asset Types for Bulk Export", asset_types)
+        if selected_bulk_types:
+            bulk_data = df[df["asset_breakdown"].isin(selected_bulk_types)].copy()
+            bulk_data["price"] = bulk_data["market_value"] / bulk_data["par_value"] * 100
+            bulk_filename = f"bulk_export_{'_'.join(selected_bulk_types)}_{datetime.now().strftime('%Y%m%d')}.csv"
+    
+    elif bulk_export_type == "AOS Corporate Finance Only":
+        bulk_data = df[df["asset_breakdown"] == "AOS Corporate Finance"].copy()
+        bulk_data["price"] = bulk_data["market_value"] / bulk_data["par_value"] * 100
+        bulk_filename = f"aos_corporate_finance_{datetime.now().strftime('%Y%m%d')}.csv"
+        
+    elif bulk_export_type == "Date Range All Assets":
+        bulk_start = st.sidebar.date_input("Bulk Start Date", value=min_date, key="bulk_start")
+        bulk_end = st.sidebar.date_input("Bulk End Date", value=max_date, key="bulk_end")
+        
+        bulk_data = df[
+            (df["date"].dt.date >= bulk_start) & 
+            (df["date"].dt.date <= bulk_end)
+        ].copy()
+        bulk_data["price"] = bulk_data["market_value"] / bulk_data["par_value"] * 100
+        bulk_filename = f"date_range_export_{bulk_start}_{bulk_end}.csv"
+    
+    if bulk_data is not None and not bulk_data.empty:
+        # Format date for export
+        bulk_data["date"] = bulk_data["date"].dt.strftime("%Y-%m-%d")
+        
+        st.session_state.bulk_export_data = bulk_data
+        st.session_state.bulk_export_filename = bulk_filename
+        st.sidebar.success(f"✅ Bulk export ready! {len(bulk_data)} rows")
+    else:
+        st.sidebar.error("❌ No data available for bulk export")
+
+# Bulk download button
+if hasattr(st.session_state, 'bulk_export_data'):
+    st.sidebar.markdown("### Bulk Download Ready")
+    create_csv_download(st.session_state.bulk_export_data, st.session_state.bulk_export_filename)
 
 # === Filter Data by Type and Date ===
 df_current = df[(df["date"].dt.date == selected_date) & (df["asset_breakdown"].isin(selected_types))]
@@ -63,6 +219,37 @@ col1, col2, col3 = st.columns(3)
 col1.metric("Total Market Value", f"${df_current['market_value'].sum():,.2f}")
 col2.metric("Total Par Value", f"${df_current['par_value'].sum():,.2f}")
 col3.metric("Securities Count", len(df_current))
+
+# === Export Current View Section ===
+st.markdown("---")
+st.markdown("### 📤 Export Current View")
+
+col_export1, col_export2, col_export3 = st.columns(3)
+
+with col_export1:
+    if st.button("Export New Assets"):
+        if not new_assets.empty:
+            export_new = new_assets.reset_index()[["name", "par_value", "market_value", "asset_breakdown"]]
+            st.session_state.current_view_export = export_new
+            st.session_state.current_view_filename = f"new_assets_{selected_date}.csv"
+
+with col_export2:
+    if st.button("Export Removed Assets"):
+        if not removed_assets.empty:
+            export_removed = removed_assets.reset_index()[["name", "par_value", "market_value", "asset_breakdown"]]
+            st.session_state.current_view_export = export_removed
+            st.session_state.current_view_filename = f"removed_assets_{selected_date}.csv"
+
+with col_export3:
+    if st.button("Export Par Changes"):
+        if not par_changes.empty:
+            export_changes = par_changes.reset_index()[["name", "par_value_prev", "par_value", "par_change", "asset_breakdown"]]
+            st.session_state.current_view_export = export_changes
+            st.session_state.current_view_filename = f"par_changes_{selected_date}.csv"
+
+# Show download button for current view exports
+if hasattr(st.session_state, 'current_view_export'):
+    create_csv_download(st.session_state.current_view_export, st.session_state.current_view_filename)
 
 # === Changes Section ===
 st.markdown("---")
@@ -115,6 +302,17 @@ aos_current_date = aos_df[aos_df["date"].dt.date == selected_date].copy()
 
 # Format the date column
 aos_current_date["date_formatted"] = aos_current_date["date"].dt.strftime("%m/%d/%Y")
+
+# Export button for AOS current data
+if st.button("Export AOS Current Data"):
+    aos_export = aos_current_date[
+        ["date_formatted", "name", "market_value", "par_value", "price", "price_pct_change", "market_value_change"]
+    ].rename(columns={"date_formatted": "date"})
+    st.session_state.aos_current_export = aos_export
+    st.session_state.aos_current_filename = f"aos_current_data_{selected_date}.csv"
+
+if hasattr(st.session_state, 'aos_current_export'):
+    create_csv_download(st.session_state.aos_current_export, st.session_state.aos_current_filename)
 
 st.dataframe(
     aos_current_date[
@@ -201,6 +399,14 @@ if weekly_data:
     # Aggregate par values by week and asset
     weekly_summary = combined_weekly_df.groupby(["week", "clean_name"])["par_value"].mean().reset_index()
     
+    # Export button for weekly data
+    if st.button("Export Weekly Summary"):
+        st.session_state.weekly_export = weekly_summary
+        st.session_state.weekly_filename = f"aos_weekly_summary_{datetime.now().strftime('%Y%m%d')}.csv"
+    
+    if hasattr(st.session_state, 'weekly_export'):
+        create_csv_download(st.session_state.weekly_export, st.session_state.weekly_filename)
+    
     # Create stacked bar chart
     stacked_bar_chart = alt.Chart(weekly_summary).mark_bar().encode(
         x=alt.X("week:N", title="Week", sort=alt.SortField("week", order="ascending")),
@@ -245,6 +451,16 @@ index_daily = index_df.groupby("date").agg(
 ).reset_index()
 
 index_daily["Weighted Index"] = index_daily["weighted_price"] / index_daily["total_mv"]
+
+# Export button for index data
+if st.button("Export Weighted Index Data"):
+    index_export = index_daily.copy()
+    index_export["date"] = index_export["date"].dt.strftime("%Y-%m-%d")
+    st.session_state.index_export = index_export
+    st.session_state.index_filename = f"weighted_index_{datetime.now().strftime('%Y%m%d')}.csv"
+
+if hasattr(st.session_state, 'index_export'):
+    create_csv_download(st.session_state.index_export, st.session_state.index_filename)
 
 # Prepare individual asset prices for charting
 individual_prices = index_df.pivot_table(
@@ -315,6 +531,16 @@ last_5_dates = sorted_dates[:5]
 
 # Filter index data for last 5 business days
 last_5_df = index_df[index_df["date"].dt.date.isin(last_5_dates)].copy()
+
+# Export button for last 5 days data
+if st.button("Export Last 5 Days Data"):
+    last_5_export = last_5_df[["date", "clean_name", "price", "market_value", "par_value"]].copy()
+    last_5_export["date"] = last_5_export["date"].dt.strftime("%Y-%m-%d")
+    st.session_state.last_5_export = last_5_export
+    st.session_state.last_5_filename = f"last_5_days_{datetime.now().strftime('%Y%m%d')}.csv"
+
+if hasattr(st.session_state, 'last_5_export'):
+    create_csv_download(st.session_state.last_5_export, st.session_state.last_5_filename)
 
 # Create the chart for last 5 business days
 last_5_chart = alt.Chart(last_5_df).mark_line(point=True).encode(
