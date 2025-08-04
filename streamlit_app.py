@@ -41,17 +41,18 @@ def get_time_series_data(asset_name, start_date, end_date):
     
     return filtered_df
 
-def create_csv_download(dataframe, filename):
+def create_csv_download(dataframe, filename, key=None):
     """Create CSV download link"""
     csv_buffer = io.StringIO()
     dataframe.to_csv(csv_buffer, index=False)
     csv_data = csv_buffer.getvalue()
     
-    return st.download_button(
+    return st.sidebar.download_button(
         label="📥 Download CSV",
         data=csv_data,
         file_name=filename,
-        mime="text/csv"
+        mime="text/csv",
+        key=key
     )
 
 # === Sidebar Filters ===
@@ -123,12 +124,8 @@ if st.sidebar.button("Generate Export Data"):
     else:
         st.sidebar.error("❌ Please check your date range")
 
-# Download button (only show if export data exists)
+# Show preview of export data (only show if export data exists)
 if hasattr(st.session_state, 'export_data'):
-    st.sidebar.markdown("### Download Ready")
-    create_csv_download(st.session_state.export_data, st.session_state.export_filename)
-    
-    # Show preview of export data
     with st.sidebar.expander("Preview Export Data"):
         st.dataframe(st.session_state.export_data.head(10), use_container_width=True)
 
@@ -185,8 +182,22 @@ if st.sidebar.button("Generate Bulk Export"):
 
 # Bulk download button
 if hasattr(st.session_state, 'bulk_export_data'):
-    st.sidebar.markdown("### Bulk Download Ready")
-    create_csv_download(st.session_state.bulk_export_data, st.session_state.bulk_export_filename)
+    with st.sidebar.expander("Preview Bulk Export Data"):
+        st.dataframe(st.session_state.bulk_export_data.head(10), use_container_width=True)
+
+# === Download Section at Bottom of Sidebar ===
+st.sidebar.markdown("---")
+st.sidebar.header("📥 Downloads")
+
+# Individual asset download button
+if hasattr(st.session_state, 'export_data'):
+    st.sidebar.markdown("**Individual Asset Export:**")
+    create_csv_download(st.session_state.export_data, st.session_state.export_filename, key="individual_download")
+
+# Bulk download button
+if hasattr(st.session_state, 'bulk_export_data'):
+    st.sidebar.markdown("**Bulk Export:**")
+    create_csv_download(st.session_state.bulk_export_data, st.session_state.bulk_export_filename, key="bulk_download")
 
 # === Filter Data by Type and Date ===
 df_current = df[(df["date"].dt.date == selected_date) & (df["asset_breakdown"].isin(selected_types))]
@@ -249,7 +260,13 @@ with col_export3:
 
 # Show download button for current view exports
 if hasattr(st.session_state, 'current_view_export'):
-    create_csv_download(st.session_state.current_view_export, st.session_state.current_view_filename)
+    st.sidebar.download_button(
+        label="📥 Download CSV",
+        data=st.session_state.current_view_export.to_csv(index=False),
+        file_name=st.session_state.current_view_filename,
+        mime="text/csv",
+        key="current_view_download"
+    )
 
 # === Changes Section ===
 st.markdown("---")
@@ -312,7 +329,13 @@ if st.button("Export AOS Current Data"):
     st.session_state.aos_current_filename = f"aos_current_data_{selected_date}.csv"
 
 if hasattr(st.session_state, 'aos_current_export'):
-    create_csv_download(st.session_state.aos_current_export, st.session_state.aos_current_filename)
+    st.sidebar.download_button(
+        label="📥 Download CSV",
+        data=st.session_state.aos_current_export.to_csv(index=False),
+        file_name=st.session_state.aos_current_filename,
+        mime="text/csv",
+        key="aos_current_download"
+    )
 
 st.dataframe(
     aos_current_date[
@@ -405,7 +428,13 @@ if weekly_data:
         st.session_state.weekly_filename = f"aos_weekly_summary_{datetime.now().strftime('%Y%m%d')}.csv"
     
     if hasattr(st.session_state, 'weekly_export'):
-        create_csv_download(st.session_state.weekly_export, st.session_state.weekly_filename)
+        st.sidebar.download_button(
+            label="📥 Download CSV",
+            data=st.session_state.weekly_export.to_csv(index=False),
+            file_name=st.session_state.weekly_filename,
+            mime="text/csv",
+            key="weekly_download"
+        )
     
     # Create stacked bar chart
     stacked_bar_chart = alt.Chart(weekly_summary).mark_bar().encode(
@@ -460,7 +489,13 @@ if st.button("Export Weighted Index Data"):
     st.session_state.index_filename = f"weighted_index_{datetime.now().strftime('%Y%m%d')}.csv"
 
 if hasattr(st.session_state, 'index_export'):
-    create_csv_download(st.session_state.index_export, st.session_state.index_filename)
+    st.sidebar.download_button(
+        label="📥 Download CSV",
+        data=st.session_state.index_export.to_csv(index=False),
+        file_name=st.session_state.index_filename,
+        mime="text/csv",
+        key="index_download"
+    )
 
 # Prepare individual asset prices for charting
 individual_prices = index_df.pivot_table(
@@ -540,7 +575,13 @@ if st.button("Export Last 5 Days Data"):
     st.session_state.last_5_filename = f"last_5_days_{datetime.now().strftime('%Y%m%d')}.csv"
 
 if hasattr(st.session_state, 'last_5_export'):
-    create_csv_download(st.session_state.last_5_export, st.session_state.last_5_filename)
+    st.sidebar.download_button(
+        label="📥 Download CSV",
+        data=st.session_state.last_5_export.to_csv(index=False),
+        file_name=st.session_state.last_5_filename,
+        mime="text/csv",
+        key="last_5_download"
+    )
 
 # Create the chart for last 5 business days
 last_5_chart = alt.Chart(last_5_df).mark_line(point=True).encode(
