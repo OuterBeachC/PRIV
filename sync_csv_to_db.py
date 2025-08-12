@@ -350,12 +350,6 @@ def main():
     success = sync_csv_to_db(csv_file, db_file)
 
     # Clean up temporary CSV file if it was created and not requested to keep
-    if temp_csv_created and not args.keep_csv:
-        try:
-            os.remove(csv_file)
-            print(f"Temporary CSV file '{csv_file}' removed.")
-        except Exception as e:
-            print(f"Warning: Could not remove temporary CSV file '{csv_file}': {e}")
 
     if not success:
         sys.exit(1)
