@@ -450,7 +450,7 @@ else:
 # === Custom Index Calculation ===
 st.markdown("### 📈 Custom Index: Weighted AOS Holdings")
 
-st.markdown("#### All AOS Corporate Finance assets, weighted by market value")
+st.markdown("#### All AOS Corporate Finance assets, weighted by market value (AP Grange holdings shown separately)")
 
 # Use all AOS Corporate Finance assets instead of just the three specific ones
 index_df = aos_df.copy()
