@@ -546,7 +546,7 @@ combined_chart = (main_lines + ma_lines).properties(height=400)
 st.altair_chart(combined_chart, use_container_width=True)
 
 # === Last 5 Business Days Price Chart ===
-st.markdown("### 📈 AOS Corporate Finance % Changes - Last 5 Business Days")
+st.markdown("### 📈 AOS Corporate Finance % Changes - Last 5 Business Days (Excluding AP Grange)")
 
 # Get the last 5 business days from available dates
 sorted_dates = sorted(df["date"].dt.date.unique(), reverse=True)
@@ -554,6 +554,10 @@ last_5_dates = sorted_dates[:5]
 
 # Prepare data for last 5 days with percentage changes
 last_5_base_df = aos_df.copy()
+
+# Filter out AP Grange holdings
+last_5_base_df = last_5_base_df[~last_5_base_df["name"].str.contains("GRANGE", case=False, na=False)].copy()
+
 last_5_base_df["clean_name"] = last_5_base_df["name"].apply(create_clean_name)
 
 # Sort and calculate percentage changes for the last 5 days data
@@ -568,7 +572,7 @@ if st.button("Export Last 5 Days Data"):
     last_5_export = last_5_df[["date", "clean_name", "price", "price_pct_change", "market_value", "par_value"]].copy()
     last_5_export["date"] = last_5_export["date"].dt.strftime("%Y-%m-%d")
     st.session_state.last_5_export = last_5_export
-    st.session_state.last_5_filename = f"last_5_days_{datetime.now().strftime('%Y%m%d')}.csv"
+    st.session_state.last_5_filename = f"last_5_days_no_grange_{datetime.now().strftime('%Y%m%d')}.csv"
 
 if hasattr(st.session_state, 'last_5_export'):
     st.sidebar.download_button(
