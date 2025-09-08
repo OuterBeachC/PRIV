@@ -352,24 +352,13 @@ st.markdown("### 🥧 AOS Corporate Finance Asset Breakdown")
 aos_pie_data = aos_current_date.copy()
 aos_pie_data["percentage"] = aos_pie_data["market_value"] / aos_pie_data["market_value"].sum() * 100
 
-# Create a function to generate cleaner names for all AOS assets
+# Create a function to generate cleaner names for all AOS assets - UPDATED TO USE FIRST 3 WORDS
 def create_clean_name(asset_name):
-    """Create cleaner asset names for display"""
-    # Remove common suffixes and clean up
-    clean_name = asset_name.replace(" LLC", "").replace(" HOLDINGS I", "").replace(" HOLDINGS", "")
-    
-    # Remove date patterns like "6 11/30/2048" or "6.25 07/25/2048"
-    import re
-    clean_name = re.sub(r' \d+\.?\d* \d{2}/\d{2}/\d{4}', '', clean_name)
-    
-    # Split by common patterns and take meaningful parts
-    if "AP " in clean_name:
-        # For AP assets, keep the AP and the next word
-        parts = clean_name.split()
-        if len(parts) >= 2:
-            clean_name = f"{parts[0]} {parts[1]}"
-    
-    return clean_name.title()
+    """Create cleaner asset names using first 3 words"""
+    words = asset_name.split()
+    # Take first 3 words, or all words if fewer than 3
+    clean_name = " ".join(words[:5])
+    return clean_name
 
 aos_pie_data["clean_name"] = aos_pie_data["name"].apply(create_clean_name)
 
