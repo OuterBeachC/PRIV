@@ -480,9 +480,19 @@ if hasattr(st.session_state, 'index_export'):
         key="index_download"
     )
 
+# DEBUG: Check data structure
+st.write("DEBUG - Index daily data shape:", index_daily_sorted.shape)
+st.write("DEBUG - Date range:", index_daily_sorted["date"].min(), "to", index_daily_sorted["date"].max())
+st.write("DEBUG - Sample data:")
+st.dataframe(index_daily_sorted.head())
+
 # Prepare individual asset percentage changes for charting
 individual_pct_changes = index_df.sort_values(["clean_name", "date"]).copy()
 individual_pct_changes["price_pct_change"] = individual_pct_changes.groupby("clean_name")["price"].pct_change() * 100
+
+# DEBUG: Check individual changes
+st.write("DEBUG - Individual changes shape:", individual_pct_changes.shape)
+st.write("DEBUG - Unique assets:", individual_pct_changes["clean_name"].nunique())
 
 # Pivot individual asset percentage changes
 individual_pct_pivot = individual_pct_changes.pivot_table(
@@ -492,12 +502,21 @@ individual_pct_pivot = individual_pct_changes.pivot_table(
     aggfunc="first"
 ).reset_index()
 
+# DEBUG: Check pivot
+st.write("DEBUG - Pivot shape:", individual_pct_pivot.shape)
+st.write("DEBUG - Pivot columns:", list(individual_pct_pivot.columns))
+
 # Combine weighted index percentage changes with individual asset percentage changes
 chart_data = individual_pct_pivot.merge(
     index_daily_sorted[["date", "Weighted Index % Change", "MA_30", "MA_60", "MA_200"]], 
     on="date", 
     how="left"
 )
+
+# DEBUG: Check combined data
+st.write("DEBUG - Combined data shape:", chart_data.shape)
+st.write("DEBUG - Combined data sample:")
+st.dataframe(chart_data.head())
 
 # Rename moving averages for better display
 chart_data = chart_data.rename(columns={
@@ -517,13 +536,24 @@ chart_data_melted = chart_data.melt(
 # Remove NaN values for cleaner chart
 chart_data_melted = chart_data_melted.dropna(subset=["Percentage_Change"])
 
+# DEBUG: Check melted data
+st.write("DEBUG - Melted data shape:", chart_data_melted.shape)
+st.write("DEBUG - Melted data date range:", chart_data_melted["date"].min(), "to", chart_data_melted["date"].max())
+st.write("DEBUG - Unique assets in melted data:", chart_data_melted["Asset"].unique())
+
 # Create separate datasets for main lines and moving averages
 main_data = chart_data_melted[~chart_data_melted['Asset'].isin(['30-Day MA', '60-Day MA', '200-Day MA'])].copy()
 ma_data = chart_data_melted[chart_data_melted['Asset'].isin(['30-Day MA', '60-Day MA', '200-Day MA'])].copy()
 
+# DEBUG: Check separated data
+st.write("DEBUG - Main data shape:", main_data.shape)
+st.write("DEBUG - MA data shape:", ma_data.shape)
+
 # Individual assets and weighted index as solid lines
 main_lines = alt.Chart(main_data).mark_line().encode(
-    x=alt.X("date:T", title="Date"),
+    x=alt.X("date:T", 
+            title="Date",
+            axis=alt.Axis(labelAngle=-45, format="%m/%d")),  # Add formatting and angle
     y=alt.Y("Percentage_Change:Q", title="Daily % Change", scale=alt.Scale(domain=[-5, 5])),
     color=alt.Color("Asset:N", title="Asset"),
     tooltip=["date:T", "Asset:N", alt.Tooltip("Percentage_Change:Q", format=".2f", title="% Change")]
@@ -531,7 +561,9 @@ main_lines = alt.Chart(main_data).mark_line().encode(
 
 # Moving averages as dashed lines
 ma_lines = alt.Chart(ma_data).mark_line(strokeDash=[5,5], opacity=0.7).encode(
-    x=alt.X("date:T", title="Date"),
+    x=alt.X("date:T", 
+            title="Date",
+            axis=alt.Axis(labelAngle=-45, format="%m/%d")),  # Add formatting and angle
     y=alt.Y("Percentage_Change:Q", title="Daily % Change", scale=alt.Scale(zero=False)),
     color=alt.Color("Asset:N", title="Asset"),
     tooltip=["date:T", "Asset:N", alt.Tooltip("Percentage_Change:Q", format=".2f", title="% Change")]
@@ -543,7 +575,12 @@ zero_line = alt.Chart(pd.DataFrame({'y': [0]})).mark_rule(color='gray', strokeDa
 )
 
 # Combine all chart elements
-combined_chart = (main_lines + ma_lines + zero_line).properties(height=400)
+combined_chart = (main_lines + ma_lines + zero_line).properties(
+    height=400,
+    width=800  # Set explicit width
+).resolve_scale(
+    color='independent'  # Allow independent color scales
+)
 
 st.altair_chart(combined_chart, use_container_width=True)
 
