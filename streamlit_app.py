@@ -546,18 +546,18 @@ combined_chart = (main_lines + ma_lines).properties(height=400)
 st.altair_chart(combined_chart, use_container_width=True)
 
 # === Last 5 Business Days Price Chart ===
-st.markdown("### 📈 AOS Corporate Finance Prices - Last 5 Business Days")
+st.markdown("### 📈 AOS Corporate Finance % Changes - Last 5 Business Days")
 
 # Get the last 5 business days from available dates
 sorted_dates = sorted(df["date"].dt.date.unique(), reverse=True)
 last_5_dates = sorted_dates[:5]
 
 # Filter index data for last 5 business days - now includes all AOS assets
-last_5_df = index_df[index_df["date"].dt.date.isin(last_5_dates)].copy()
+last_5_df = index_df_sorted[index_df_sorted["date"].dt.date.isin(last_5_dates)].copy()
 
-# Export button for last 5 days data
+# Export button for last 5 days data (including percentage changes)
 if st.button("Export Last 5 Days Data"):
-    last_5_export = last_5_df[["date", "clean_name", "price", "market_value", "par_value"]].copy()
+    last_5_export = last_5_df[["date", "clean_name", "price", "price_pct_change", "market_value", "par_value"]].copy()
     last_5_export["date"] = last_5_export["date"].dt.strftime("%Y-%m-%d")
     st.session_state.last_5_export = last_5_export
     st.session_state.last_5_filename = f"last_5_days_{datetime.now().strftime('%Y%m%d')}.csv"
@@ -571,15 +571,26 @@ if hasattr(st.session_state, 'last_5_export'):
         key="last_5_download"
     )
 
-# Create the chart for last 5 business days
-last_5_chart = alt.Chart(last_5_df).mark_line(point=True).encode(
+# Filter out NaN percentage changes for the chart
+last_5_df_clean = last_5_df.dropna(subset=["price_pct_change"])
+
+# Create the chart for last 5 business days showing percentage changes
+last_5_chart = alt.Chart(last_5_df_clean).mark_line(point=True).encode(
     x=alt.X("date:T", title="Date"),
-    y=alt.Y("price:Q", title="Price", scale=alt.Scale(domain=[last_5_df["price"].min() * 0.99, last_5_df["price"].max() * 1.01])),
+    y=alt.Y("price_pct_change:Q", title="Daily % Change", scale=alt.Scale(zero=False)),
     color=alt.Color("clean_name:N", title="Asset"),
-    tooltip=["date:T", "clean_name:N", "price:Q"]
+    tooltip=["date:T", "clean_name:N", alt.Tooltip("price_pct_change:Q", format=".2f", title="% Change")]
 ).properties(height=400)
 
-st.altair_chart(last_5_chart, use_container_width=True)
+# Add horizontal line at 0%
+zero_line_last5 = alt.Chart(pd.DataFrame({'y': [0]})).mark_rule(color='gray', strokeDash=[2,2], opacity=0.5).encode(
+    y=alt.Y('y:Q')
+)
+
+# Combine chart with zero line
+last_5_combined = (last_5_chart + zero_line_last5)
+
+st.altair_chart(last_5_combined, use_container_width=True)
 
 # === Disclosure ===
 st.markdown("---")
