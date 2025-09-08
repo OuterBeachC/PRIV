@@ -390,11 +390,7 @@ for week_num in range(min(12, len(all_dates) // week_size)):  # Show up to 12 we
         week_start = min(week_dates)
         week_end = max(week_dates)
         
-        # Format the date range for display
-        if week_start == week_end:
-            week_label = week_start.strftime("%m/%d/%y")
-        else:
-            week_label = f"{week_start.strftime('%m/%d/%y')} - {week_end.strftime('%m/%d/%y')}"
+        week_label = week_end.strftime("%m/%d/%y")  
         
         week_df["week"] = week_label
         week_df["week_start"] = week_start
