@@ -469,12 +469,21 @@ index_daily = index_df.groupby("date").agg(
 
 index_daily["Weighted Index"] = index_daily["weighted_price"] / index_daily["total_mv"]
 
-# Export button for index data
+# Sort by date and calculate percentage changes
+index_daily_sorted = index_daily.sort_values("date").copy()
+index_daily_sorted["Weighted Index % Change"] = index_daily_sorted["Weighted Index"].pct_change() * 100
+
+# Calculate moving averages for the percentage changes
+index_daily_sorted["MA_30"] = index_daily_sorted["Weighted Index % Change"].rolling(window=30, min_periods=1).mean()
+index_daily_sorted["MA_60"] = index_daily_sorted["Weighted Index % Change"].rolling(window=60, min_periods=1).mean()
+index_daily_sorted["MA_200"] = index_daily_sorted["Weighted Index % Change"].rolling(window=200, min_periods=1).mean()
+
+# Export button for index data (now including percentage changes)
 if st.button("Export Weighted Index Data"):
-    index_export = index_daily.copy()
+    index_export = index_daily_sorted[["date", "Weighted Index", "Weighted Index % Change", "MA_30", "MA_60", "MA_200"]].copy()
     index_export["date"] = index_export["date"].dt.strftime("%Y-%m-%d")
     st.session_state.index_export = index_export
-    st.session_state.index_filename = f"weighted_index_{datetime.now().strftime('%Y%m%d')}.csv"
+    st.session_state.index_filename = f"weighted_index_pct_changes_{datetime.now().strftime('%Y%m%d')}.csv"
 
 if hasattr(st.session_state, 'index_export'):
     st.sidebar.download_button(
@@ -485,40 +494,42 @@ if hasattr(st.session_state, 'index_export'):
         key="index_download"
     )
 
-# Prepare individual asset prices for charting
-individual_prices = index_df.pivot_table(
+# Prepare individual asset percentage changes for charting
+individual_pct_changes = index_df.sort_values(["clean_name", "date"]).copy()
+individual_pct_changes["price_pct_change"] = individual_pct_changes.groupby("clean_name")["price"].pct_change() * 100
+
+# Pivot individual asset percentage changes
+individual_pct_pivot = individual_pct_changes.pivot_table(
     index="date", 
     columns="clean_name", 
-    values="price", 
+    values="price_pct_change", 
     aggfunc="first"
 ).reset_index()
 
-# Calculate moving averages for the Weighted Index
-index_daily_sorted = index_daily.sort_values("date").copy()
-index_daily_sorted["MA_30"] = index_daily_sorted["Weighted Index"].rolling(window=30, min_periods=1).mean()
-index_daily_sorted["MA_60"] = index_daily_sorted["Weighted Index"].rolling(window=60, min_periods=1).mean()
-index_daily_sorted["MA_200"] = index_daily_sorted["Weighted Index"].rolling(window=200, min_periods=1).mean()
-
-# Combine weighted index with individual asset prices and moving averages
-chart_data = individual_prices.merge(
-    index_daily_sorted[["date", "Weighted Index", "MA_30", "MA_60", "MA_200"]], 
+# Combine weighted index percentage changes with individual asset percentage changes
+chart_data = individual_pct_pivot.merge(
+    index_daily_sorted[["date", "Weighted Index % Change", "MA_30", "MA_60", "MA_200"]], 
     on="date", 
     how="left"
 )
 
 # Rename moving averages for better display
 chart_data = chart_data.rename(columns={
+    "Weighted Index % Change": "Weighted Index",
     "MA_30": "30-Day MA",
     "MA_60": "60-Day MA", 
     "MA_200": "200-Day MA"
 })
 
-# Display the combined chart with custom y-axis range
+# Melt the data for charting
 chart_data_melted = chart_data.melt(
     id_vars=["date"], 
     var_name="Asset", 
-    value_name="Price"
+    value_name="Percentage_Change"
 )
+
+# Remove NaN values for cleaner chart
+chart_data_melted = chart_data_melted.dropna(subset=["Percentage_Change"])
 
 # Create separate datasets for main lines and moving averages
 main_data = chart_data_melted[~chart_data_melted['Asset'].isin(['30-Day MA', '60-Day MA', '200-Day MA'])].copy()
@@ -527,21 +538,26 @@ ma_data = chart_data_melted[chart_data_melted['Asset'].isin(['30-Day MA', '60-Da
 # Individual assets and weighted index as solid lines
 main_lines = alt.Chart(main_data).mark_line().encode(
     x=alt.X("date:T", title="Date"),
-    y=alt.Y("Price:Q", title="Price", scale=alt.Scale(domain=[100, chart_data_melted["Price"].max() * 1.02])),
+    y=alt.Y("Percentage_Change:Q", title="Daily % Change", scale=alt.Scale(zero=False)),
     color=alt.Color("Asset:N", title="Asset"),
-    tooltip=["date:T", "Asset:N", "Price:Q"]
+    tooltip=["date:T", "Asset:N", alt.Tooltip("Percentage_Change:Q", format=".2f", title="% Change")]
 )
 
 # Moving averages as dashed lines
 ma_lines = alt.Chart(ma_data).mark_line(strokeDash=[5,5], opacity=0.7).encode(
     x=alt.X("date:T", title="Date"),
-    y=alt.Y("Price:Q", title="Price", scale=alt.Scale(domain=[100, chart_data_melted["Price"].max() * 1.02])),
+    y=alt.Y("Percentage_Change:Q", title="Daily % Change", scale=alt.Scale(zero=False)),
     color=alt.Color("Asset:N", title="Asset"),
-    tooltip=["date:T", "Asset:N", "Price:Q"]
+    tooltip=["date:T", "Asset:N", alt.Tooltip("Percentage_Change:Q", format=".2f", title="% Change")]
 )
 
-# Combine both chart types
-combined_chart = (main_lines + ma_lines).properties(height=400)
+# Add horizontal line at 0%
+zero_line = alt.Chart(pd.DataFrame({'y': [0]})).mark_rule(color='gray', strokeDash=[2,2], opacity=0.5).encode(
+    y=alt.Y('y:Q')
+)
+
+# Combine all chart elements
+combined_chart = (main_lines + ma_lines + zero_line).properties(height=400)
 
 st.altair_chart(combined_chart, use_container_width=True)
 
