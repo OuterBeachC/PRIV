@@ -438,8 +438,37 @@ st.markdown("### 📈 Custom Index: Weighted AOS Holdings")
 
 st.markdown("#### All AOS Corporate Finance assets, weighted by market value (showing daily % changes)")
 
+# Date range selector for the chart
+st.markdown("**Select Date Range:**")
+date_range_option = st.radio(
+    "Choose date range:",
+    ["Last 60 Trading Days", "Last 30 Trading Days", "Last 90 Trading Days", "All Available Data"],
+    horizontal=True
+)
+
 # Use all AOS Corporate Finance assets instead of just the three specific ones
 index_df = aos_df.copy()
+
+# Filter by selected date range
+if date_range_option != "All Available Data":
+    # Get all available trading days (sorted descending)
+    all_trading_days = sorted(index_df["date"].dt.date.unique(), reverse=True)
+    
+    # Determine number of days based on selection
+    if date_range_option == "Last 60 Trading Days":
+        num_days = 60
+    elif date_range_option == "Last 30 Trading Days":
+        num_days = 30
+    elif date_range_option == "Last 90 Trading Days":
+        num_days = 90
+    
+    # Get the last N trading days
+    selected_trading_days = all_trading_days[:num_days]
+    
+    # Filter the dataframe to only include these dates
+    index_df = index_df[index_df["date"].dt.date.isin(selected_trading_days)].copy()
+    
+    st.info(f"Showing data for {len(selected_trading_days)} trading days from {min(selected_trading_days)} to {max(selected_trading_days)}")
 
 # Add clean names for individual asset tracking
 index_df["clean_name"] = index_df["name"].apply(create_clean_name)
@@ -480,10 +509,19 @@ if hasattr(st.session_state, 'index_export'):
         key="index_download"
     )
 
+# DEBUG: Check data structure
+st.write("DEBUG - Index daily data shape:", index_daily_sorted.shape)
+st.write("DEBUG - Date range:", index_daily_sorted["date"].min(), "to", index_daily_sorted["date"].max())
+st.write("DEBUG - Sample data:")
+st.dataframe(index_daily_sorted.head())
+
 # Prepare individual asset percentage changes for charting
 individual_pct_changes = index_df.sort_values(["clean_name", "date"]).copy()
 individual_pct_changes["price_pct_change"] = individual_pct_changes.groupby("clean_name")["price"].pct_change() * 100
 
+# DEBUG: Check individual changes
+st.write("DEBUG - Individual changes shape:", individual_pct_changes.shape)
+st.write("DEBUG - Unique assets:", individual_pct_changes["clean_name"].nunique())
 
 # Pivot individual asset percentage changes
 individual_pct_pivot = individual_pct_changes.pivot_table(
@@ -493,6 +531,9 @@ individual_pct_pivot = individual_pct_changes.pivot_table(
     aggfunc="first"
 ).reset_index()
 
+# DEBUG: Check pivot
+st.write("DEBUG - Pivot shape:", individual_pct_pivot.shape)
+st.write("DEBUG - Pivot columns:", list(individual_pct_pivot.columns))
 
 # Combine weighted index percentage changes with individual asset percentage changes
 chart_data = individual_pct_pivot.merge(
@@ -500,6 +541,11 @@ chart_data = individual_pct_pivot.merge(
     on="date", 
     how="left"
 )
+
+# DEBUG: Check combined data
+st.write("DEBUG - Combined data shape:", chart_data.shape)
+st.write("DEBUG - Combined data sample:")
+st.dataframe(chart_data.head())
 
 # Rename moving averages for better display
 chart_data = chart_data.rename(columns={
@@ -519,27 +565,50 @@ chart_data_melted = chart_data.melt(
 # Remove NaN values for cleaner chart
 chart_data_melted = chart_data_melted.dropna(subset=["Percentage_Change"])
 
+# DEBUG: Check melted data
+st.write("DEBUG - Melted data shape:", chart_data_melted.shape)
+st.write("DEBUG - Melted data date range:", chart_data_melted["date"].min(), "to", chart_data_melted["date"].max())
+st.write("DEBUG - Unique assets in melted data:", chart_data_melted["Asset"].unique())
+
 # Create separate datasets for main lines and moving averages
 main_data = chart_data_melted[~chart_data_melted['Asset'].isin(['30-Day MA', '60-Day MA', '200-Day MA'])].copy()
 ma_data = chart_data_melted[chart_data_melted['Asset'].isin(['30-Day MA', '60-Day MA', '200-Day MA'])].copy()
 
+# DEBUG: Check separated data
+st.write("DEBUG - Main data shape:", main_data.shape)
+st.write("DEBUG - MA data shape:", ma_data.shape)
+
 # Individual assets and weighted index as solid lines
-main_lines = alt.Chart(main_data).mark_line().encode(
+main_lines = alt.Chart(main_data).mark_line(strokeWidth=2).encode(
     x=alt.X("date:T", 
             title="Date",
-            axis=alt.Axis(labelAngle=-45, format="%m/%d")),  # Add formatting and angle
-    y=alt.Y("Percentage_Change:Q", title="Daily % Change", scale=alt.Scale(zero=False)),
-    color=alt.Color("Asset:N", title="Asset"),
+            axis=alt.Axis(
+                labelAngle=-45, 
+                format="%m/%d/%y",
+                labelOverlap=False,
+                tickCount=10
+            )),
+    y=alt.Y("Percentage_Change:Q", 
+            title="Daily % Change", 
+            scale=alt.Scale(zero=False)),  # Remove fixed domain and zero constraint
+    color=alt.Color("Asset:N", title="Asset", scale=alt.Scale(scheme="category20")),
     tooltip=["date:T", "Asset:N", alt.Tooltip("Percentage_Change:Q", format=".2f", title="% Change")]
 )
 
 # Moving averages as dashed lines
-ma_lines = alt.Chart(ma_data).mark_line(strokeDash=[5,5], opacity=0.7).encode(
+ma_lines = alt.Chart(ma_data).mark_line(strokeDash=[5,5], opacity=0.7, strokeWidth=2).encode(
     x=alt.X("date:T", 
             title="Date",
-            axis=alt.Axis(labelAngle=-45, format="%m/%d")),  # Add formatting and angle
-    y=alt.Y("Percentage_Change:Q", title="Daily % Change", scale=alt.Scale(zero=False)),
-    color=alt.Color("Asset:N", title="Asset"),
+            axis=alt.Axis(
+                labelAngle=-45, 
+                format="%m/%d/%y",
+                labelOverlap=False,
+                tickCount=10
+            )),
+    y=alt.Y("Percentage_Change:Q", 
+            title="Daily % Change",
+            scale=alt.Scale(zero=False)),  # Remove zero constraint
+    color=alt.Color("Asset:N", title="Asset", scale=alt.Scale(scheme="set2")),
     tooltip=["date:T", "Asset:N", alt.Tooltip("Percentage_Change:Q", format=".2f", title="% Change")]
 )
 
@@ -550,10 +619,10 @@ zero_line = alt.Chart(pd.DataFrame({'y': [0]})).mark_rule(color='gray', strokeDa
 
 # Combine all chart elements
 combined_chart = (main_lines + ma_lines + zero_line).properties(
-    height=400,
-    width=800  # Set explicit width
+    height=500,
+    title="Daily Percentage Changes - AOS Corporate Finance Assets"
 ).resolve_scale(
-    color='independent'  # Allow independent color scales
+    color='independent'
 )
 
 st.altair_chart(combined_chart, use_container_width=True)
