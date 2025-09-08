@@ -552,8 +552,16 @@ st.markdown("### 📈 AOS Corporate Finance % Changes - Last 5 Business Days")
 sorted_dates = sorted(df["date"].dt.date.unique(), reverse=True)
 last_5_dates = sorted_dates[:5]
 
-# Filter index data for last 5 business days - now includes all AOS assets
-last_5_df = index_df_sorted[index_df_sorted["date"].dt.date.isin(last_5_dates)].copy()
+# Prepare data for last 5 days with percentage changes
+last_5_base_df = aos_df.copy()
+last_5_base_df["clean_name"] = last_5_base_df["name"].apply(create_clean_name)
+
+# Sort and calculate percentage changes for the last 5 days data
+last_5_sorted_df = last_5_base_df.sort_values(["clean_name", "date"]).copy()
+last_5_sorted_df["price_pct_change"] = last_5_sorted_df.groupby("clean_name")["price"].pct_change() * 100
+
+# Filter for last 5 business days
+last_5_df = last_5_sorted_df[last_5_sorted_df["date"].dt.date.isin(last_5_dates)].copy()
 
 # Export button for last 5 days data (including percentage changes)
 if st.button("Export Last 5 Days Data"):
