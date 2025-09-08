@@ -528,7 +528,7 @@ main_lines = alt.Chart(main_data).mark_line().encode(
     x=alt.X("date:T", 
             title="Date",
             axis=alt.Axis(labelAngle=-45, format="%m/%d")),  # Add formatting and angle
-    y=alt.Y("Percentage_Change:Q", title="Daily % Change", scale=alt.Scale(domain=[-5, 5])),
+    y=alt.Y("Percentage_Change:Q", title="Daily % Change", scale=alt.Scale(zero=False)),
     color=alt.Color("Asset:N", title="Asset"),
     tooltip=["date:T", "Asset:N", alt.Tooltip("Percentage_Change:Q", format=".2f", title="% Change")]
 )
@@ -538,7 +538,7 @@ ma_lines = alt.Chart(ma_data).mark_line(strokeDash=[5,5], opacity=0.7).encode(
     x=alt.X("date:T", 
             title="Date",
             axis=alt.Axis(labelAngle=-45, format="%m/%d")),  # Add formatting and angle
-    y=alt.Y("Percentage_Change:Q", title="Daily % Change", scale=alt.Scale(domain=[-5, 5])),
+    y=alt.Y("Percentage_Change:Q", title="Daily % Change", scale=alt.Scale(zero=False)),
     color=alt.Color("Asset:N", title="Asset"),
     tooltip=["date:T", "Asset:N", alt.Tooltip("Percentage_Change:Q", format=".2f", title="% Change")]
 )
