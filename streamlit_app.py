@@ -561,8 +561,6 @@ last_5_dates = sorted_dates[:5]
 last_5_base_df = aos_df.copy()
 
 # Filter out AP Grange holdings
-last_5_base_df = last_5_base_df[~last_5_base_df["name"].str.contains("GRANGE", case=False, na=False)].copy()
-
 last_5_base_df["clean_name"] = last_5_base_df["name"].apply(create_clean_name)
 
 # Sort and calculate percentage changes for the last 5 days data
