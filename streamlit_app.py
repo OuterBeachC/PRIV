@@ -538,7 +538,7 @@ ma_data = chart_data_melted[chart_data_melted['Asset'].isin(['30-Day MA', '60-Da
 # Individual assets and weighted index as solid lines
 main_lines = alt.Chart(main_data).mark_line().encode(
     x=alt.X("date:T", title="Date"),
-    y=alt.Y("Percentage_Change:Q", title="Daily % Change", scale=alt.Scale(zero=False)),
+    y=alt.Y("Percentage_Change:Q", title="Daily % Change", scale=alt.Scale(domain=[-10, 10])),
     color=alt.Color("Asset:N", title="Asset"),
     tooltip=["date:T", "Asset:N", alt.Tooltip("Percentage_Change:Q", format=".2f", title="% Change")]
 )
