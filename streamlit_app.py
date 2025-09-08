@@ -352,14 +352,26 @@ st.markdown("### 🥧 AOS Corporate Finance Asset Breakdown")
 aos_pie_data = aos_current_date.copy()
 aos_pie_data["percentage"] = aos_pie_data["market_value"] / aos_pie_data["market_value"].sum() * 100
 
-# Create a mapping for cleaner names for the pie chart
-pie_name_mapping = {
-    "AP FIDES HOLDINGS I LLC 6 11/30/2048": "AP Fides",
-    "AP HERMES HOLDINGS I LLC 6.25 07/25/2048": "AP Hermes",
-    "AP MAIA HOLDINGS I LLC 5.5 07/28/2047": "AP Maia"
-}
+# Create a function to generate cleaner names for all AOS assets
+def create_clean_name(asset_name):
+    """Create cleaner asset names for display"""
+    # Remove common suffixes and clean up
+    clean_name = asset_name.replace(" LLC", "").replace(" HOLDINGS I", "").replace(" HOLDINGS", "")
+    
+    # Remove date patterns like "6 11/30/2048" or "6.25 07/25/2048"
+    import re
+    clean_name = re.sub(r' \d+\.?\d* \d{2}/\d{2}/\d{4}', '', clean_name)
+    
+    # Split by common patterns and take meaningful parts
+    if "AP " in clean_name:
+        # For AP assets, keep the AP and the next word
+        parts = clean_name.split()
+        if len(parts) >= 2:
+            clean_name = f"{parts[0]} {parts[1]}"
+    
+    return clean_name.title()
 
-aos_pie_data["clean_name"] = aos_pie_data["name"].map(pie_name_mapping).fillna(aos_pie_data["name"])
+aos_pie_data["clean_name"] = aos_pie_data["name"].apply(create_clean_name)
 
 pie_chart = alt.Chart(aos_pie_data).mark_arc(innerRadius=50).encode(
     theta=alt.Theta("market_value:Q", title="Market Value"),
@@ -371,17 +383,6 @@ st.altair_chart(pie_chart, use_container_width=True)
 
 # === AOS Corporate Finance Par Value Over Time ===
 st.markdown("### 📊 AOS Corporate Finance Par Value - Weekly Breakdown")
-
-# Enhanced name mapping for all AOS Corporate Finance assets
-enhanced_name_mapping = {
-    "AP FIDES HOLDINGS I LLC 6 11/30/2048": "AP Fides",
-    "AP HERMES HOLDINGS I LLC 6.25 07/25/2048": "AP Hermes", 
-    "AP MAIA HOLDINGS I LLC 5.5 07/28/2047": "AP Maia",
-    # Add more mappings as needed - you can extend this based on your other asset names
-    # Example patterns (adjust based on your actual data):
-    # "AP ATLAS HOLDINGS I LLC": "AP Atlas",
-    # "AP TITAN HOLDINGS I LLC": "AP Titan",
-}
 
 # Get all available dates and organize into weeks
 all_dates = sorted(df["date"].dt.date.unique(), reverse=True)
@@ -414,10 +415,8 @@ for week_num in range(min(12, len(all_dates) // week_size)):  # Show up to 12 we
 if weekly_data:
     combined_weekly_df = pd.concat(weekly_data, ignore_index=True)
     
-    # Apply enhanced name mapping
-    combined_weekly_df["clean_name"] = combined_weekly_df["name"].map(enhanced_name_mapping).fillna(
-        combined_weekly_df["name"].str.replace(r" \d+\.?\d* \d{2}/\d{2}/\d{4}", "", regex=True).str.replace(" LLC", "").str.title()
-    )
+    # Apply clean name function to all AOS assets
+    combined_weekly_df["clean_name"] = combined_weekly_df["name"].apply(create_clean_name)
     
     # Aggregate par values by week and asset
     weekly_summary = combined_weekly_df.groupby(["week", "clean_name"])["par_value"].mean().reset_index()
@@ -451,24 +450,13 @@ else:
 # === Custom Index Calculation ===
 st.markdown("### 📈 Custom Index: Weighted AOS Holdings")
 
-st.markdown("#### AP Fides, AP Hermes, and AP Maia prices, weighted by market value")
-index_assets = [
-    "AP FIDES HOLDINGS I LLC 6 11/30/2048",
-    "AP HERMES HOLDINGS I LLC 6.25 07/25/2048",
-    "AP MAIA HOLDINGS I LLC 5.5 07/28/2047"
-]
+st.markdown("#### All AOS Corporate Finance assets, weighted by market value")
 
-index_df = aos_df[aos_df["name"].isin(index_assets)].copy()
-
-# Create a mapping for cleaner names
-name_mapping = {
-    "AP FIDES HOLDINGS I LLC 6 11/30/2048": "AP Fides",
-    "AP HERMES HOLDINGS I LLC 6.25 07/25/2048": "AP Hermes",
-    "AP MAIA HOLDINGS I LLC 5.5 07/28/2047": "AP Maia"
-}
+# Use all AOS Corporate Finance assets instead of just the three specific ones
+index_df = aos_df.copy()
 
 # Add clean names for individual asset tracking
-index_df["clean_name"] = index_df["name"].map(name_mapping)
+index_df["clean_name"] = index_df["name"].apply(create_clean_name)
 
 # Calculate weighted index
 index_df["weight"] = index_df["market_value"]
@@ -540,7 +528,7 @@ ma_data = chart_data_melted[chart_data_melted['Asset'].isin(['30-Day MA', '60-Da
 main_lines = alt.Chart(main_data).mark_line().encode(
     x=alt.X("date:T", title="Date"),
     y=alt.Y("Price:Q", title="Price", scale=alt.Scale(domain=[100, chart_data_melted["Price"].max() * 1.02])),
-    color=alt.Color("Asset:N", title="Asset", scale=alt.Scale(range=["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"])),
+    color=alt.Color("Asset:N", title="Asset"),
     tooltip=["date:T", "Asset:N", "Price:Q"]
 )
 
@@ -548,7 +536,7 @@ main_lines = alt.Chart(main_data).mark_line().encode(
 ma_lines = alt.Chart(ma_data).mark_line(strokeDash=[5,5], opacity=0.7).encode(
     x=alt.X("date:T", title="Date"),
     y=alt.Y("Price:Q", title="Price", scale=alt.Scale(domain=[100, chart_data_melted["Price"].max() * 1.02])),
-    color=alt.Color("Asset:N", title="Asset", scale=alt.Scale(range=["#9467bd", "#8c564b", "#e377c2"])),
+    color=alt.Color("Asset:N", title="Asset"),
     tooltip=["date:T", "Asset:N", "Price:Q"]
 )
 
@@ -558,13 +546,13 @@ combined_chart = (main_lines + ma_lines).properties(height=400)
 st.altair_chart(combined_chart, use_container_width=True)
 
 # === Last 5 Business Days Price Chart ===
-st.markdown("### 📈 AP Holdings Prices - Last 5 Business Days")
+st.markdown("### 📈 AOS Corporate Finance Prices - Last 5 Business Days")
 
 # Get the last 5 business days from available dates
 sorted_dates = sorted(df["date"].dt.date.unique(), reverse=True)
 last_5_dates = sorted_dates[:5]
 
-# Filter index data for last 5 business days
+# Filter index data for last 5 business days - now includes all AOS assets
 last_5_df = index_df[index_df["date"].dt.date.isin(last_5_dates)].copy()
 
 # Export button for last 5 days data
