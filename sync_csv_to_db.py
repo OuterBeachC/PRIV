@@ -6,6 +6,7 @@ import os
 import argparse
 from datetime import datetime
 import requests
+import re
 
 def download_latest_priv_xlsx(output_path):
     url = "https://www.ssga.com/us/en/intermediary/library-content/products/fund-data/etfs/us/holdings-daily-us-en-priv.xlsx"
@@ -24,6 +25,49 @@ def download_latest_priv_xlsx(output_path):
     except Exception as e:
         print(f"Error downloading file: {e}")
         return False
+
+def extract_value_from_b2(input_file, sheet_name=0):
+    """
+    Extract value from cell B2 in the XLSX file for use as filename suffix.
+    
+    Args:
+        input_file (str): Path to input XLSX file
+        sheet_name (str/int): Sheet name or index (default: 0)
+    
+    Returns:
+        str: Cleaned value from B2 suitable for filename, or 'DATA' as fallback
+    """
+    try:
+        print(f"Extracting value from cell B2 in: {input_file}")
+        b2_df = pd.read_excel(input_file, sheet_name=sheet_name, header=None, nrows=2)
+        
+        # Get value from cell B2 (row 1, column 1 in 0-based indexing)
+        b2_value = b2_df.iloc[1, 1]  # Row 2, Column B
+        
+        if pd.isna(b2_value):
+            print("Warning: Cell B2 is empty, using 'DATA' as fallback")
+            return "DATA"
+        
+        # Convert to string and clean for filename use
+        b2_str = str(b2_value).strip()
+        
+        print(f"Raw value from B2: '{b2_value}'")
+        
+        # Clean the value for use in filename (remove special characters, spaces, etc.)
+        # Keep only alphanumeric characters and convert to uppercase
+        cleaned_value = re.sub(r'[^a-zA-Z0-9]', '', b2_str).upper()
+        
+        if not cleaned_value:
+            print("Warning: B2 value resulted in empty string after cleaning, using 'DATA' as fallback")
+            return "DATA"
+        
+        print(f"Cleaned B2 value for filename: '{cleaned_value}'")
+        return cleaned_value
+        
+    except Exception as e:
+        print(f"Error extracting value from B2: {str(e)}")
+        print("Using 'DATA' as fallback")
+        return "DATA"
 
 def extract_date_from_b3(input_file, sheet_name=0):
     """
@@ -127,6 +171,14 @@ def convert_xlsx_to_csv(input_file, output_file=None, skip_rows=4, skip_footer=3
         # Extract date from B3 for the date column
         extracted_date = extract_date_from_b3(input_file, sheet_name)
         
+        # Extract value from B2 for filename suffix and data column
+        try:
+            b2_value = extract_value_from_b2(input_file, sheet_name)
+        except ValueError as e:
+            print(str(e))
+            print("Please check that cell B2 contains a valid identifier (alphanumeric characters).")
+            return None
+        
         # Generate output filename if not provided
         if output_file is None:
             try:
@@ -143,9 +195,9 @@ def convert_xlsx_to_csv(input_file, output_file=None, skip_rows=4, skip_footer=3
                     print("Warning: Using current date for filename")
                     date_str = datetime.now().strftime("%m%d%Y")
                 
-                # Create filename with date and PRIV suffix
+                # Create filename with date and B2 value suffix
                 input_dir = os.path.dirname(input_file)
-                output_file = os.path.join(input_dir, f"{date_str}PRIV.csv")
+                output_file = os.path.join(input_dir, f"{date_str}{b2_value}.csv")
                 print(f"Generated CSV filename: {output_file}")
                 
             except Exception as e:
@@ -174,6 +226,13 @@ def convert_xlsx_to_csv(input_file, output_file=None, skip_rows=4, skip_footer=3
             print("Please check that cell B3 contains a valid date in the format 'As of DD-MMM-YYYY'")
             return None
         
+        # Add B2 value column
+        print(f"Adding B2 value column with value: {b2_value}")
+        mask = df.notna().any(axis=1)  # True for rows with at least one non-NaN value
+        df['Source_Identifier'] = None  # Initialize column
+        df.loc[mask, 'Source_Identifier'] = b2_value  # Set B2 value only for rows with data
+        print(f"Added source identifier to {mask.sum()} rows with data")
+        
         # Convert to CSV
         print(f"Converting to CSV: {output_file}")
         df.to_csv(output_file, index=False)
@@ -190,7 +249,7 @@ def convert_xlsx_to_csv(input_file, output_file=None, skip_rows=4, skip_footer=3
 
 def sync_csv_to_db(csv_file, db_file):
     """
-    Sync CSV data to SQLite database, avoiding duplicate dates.
+    Sync CSV data to SQLite database, avoiding duplicate date/source combinations.
     
     Args:
         csv_file (str): Path to CSV file
@@ -235,43 +294,56 @@ def sync_csv_to_db(csv_file, db_file):
         
         return False
     
-    # Extract all unique dates in the file
-    csv_dates = df["date"].dropna().unique()
-    print(f"Found {len(csv_dates)} unique dates in CSV: {list(csv_dates)}")
+    # Check if 'source_identifier' column exists after normalization
+    if 'source_identifier' not in df.columns:
+        print("❌ ERROR: No 'source_identifier' column found after normalization!")
+        print("Available columns:", list(df.columns))
+        return False
+    
+    # Extract all unique date/source combinations in the file
+    csv_combinations = df[["date", "source_identifier"]].dropna().drop_duplicates()
+    print(f"Found {len(csv_combinations)} unique date/source combinations in CSV:")
+    for _, row in csv_combinations.iterrows():
+        print(f"  {row['date']} - {row['source_identifier']}")
     
     # Connect to DB
     conn = sqlite3.connect(db_file)
     cursor = conn.cursor()
     
-    # Check if the financial_data table exists
+    # Check if the financial_data table exists and get existing date/source combinations
     try:
-        existing_dates = cursor.execute("SELECT DISTINCT date FROM financial_data").fetchall()
-        existing_dates = set(date[0] for date in existing_dates)
-        print(f"Found {len(existing_dates)} existing dates in database")
-        if existing_dates:
-            print(f"Existing dates: {sorted(list(existing_dates))}")
+        existing_combinations = cursor.execute("SELECT DISTINCT date, source_identifier FROM financial_data").fetchall()
+        existing_combinations = set((combo[0], combo[1]) for combo in existing_combinations)
+        print(f"Found {len(existing_combinations)} existing date/source combinations in database")
+        if existing_combinations:
+            print("Existing combinations:")
+            for date, source in sorted(list(existing_combinations)):
+                print(f"  {date} - {source}")
     except sqlite3.OperationalError as e:
         if "no such table" in str(e):
             print("Table 'financial_data' doesn't exist yet. All data will be inserted as new.")
-            existing_dates = set()
+            existing_combinations = set()
         else:
             raise e
     
-    # Filter out rows with already existing dates
-    new_data_mask = ~df["date"].isin(existing_dates)
+    # Filter out rows with already existing date/source combinations
+    def is_new_combination(row):
+        return (row['date'], row['source_identifier']) not in existing_combinations
+    
+    new_data_mask = df.apply(is_new_combination, axis=1)
     df_new = df[new_data_mask]
     
     if df_new.empty:
-        print("All dates in this CSV already exist in the database. No new data inserted.")
+        print("All date/source combinations in this CSV already exist in the database. No new data inserted.")
         conn.close()
         return True
     
-    print(f"Found {len(df_new)} rows with new dates to insert")
+    print(f"Found {len(df_new)} rows with new date/source combinations to insert")
     
-    # Expected columns for the database
+    # Expected columns for the database (updated to include source_identifier)
     expected_columns = [
         "date", "name", "identifier", "sedol", "weight", "coupon",
-        "par_value", "market_value", "local_currency", "maturity", "asset_breakdown"
+        "par_value", "market_value", "local_currency", "maturity", "asset_breakdown", "source_identifier"
     ]
     
     # Check which expected columns are missing
