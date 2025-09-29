@@ -17,8 +17,8 @@ FUND_CONFIG = {
         "url": "https://www.ssga.com/us/en/intermediary/etfs/spdr-ssga-ig-public-private-credit-etf-priv"
     },
     "PRSD": {
-        "name": "SPDR SSGA Senior Debt ETF", 
-        "url": "https://www.ssga.com/us/en/intermediary/etfs/spdr-ssga-senior-debt-etf-prsd"
+        "name": "State Street® Short Duration IG Public & Private Credit ETF", 
+        "url": "https://www.ssga.com/us/en/intermediary/etfs/state-street-short-duration-ig-public-private-credit-etf-prsd"
     }
 }
 
