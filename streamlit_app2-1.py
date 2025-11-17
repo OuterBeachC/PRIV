@@ -198,9 +198,6 @@ def render_fund_dashboard(fund_symbol, df, selected_date):
             key=key
         )
 
-    # === Sidebar Filters ===
-    st.sidebar.header(f"🔎 {fund_symbol} Filters")
-
     # Get all available dates
     available_dates = sorted(df["date"].dt.date.unique(), reverse=True)
     
