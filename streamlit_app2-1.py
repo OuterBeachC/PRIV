@@ -8,18 +8,6 @@ import io
 st.set_page_config(layout="wide")
 st.title("📊 Financial Holdings: Multi-Fund Dashboard")
 
-# === Fund Configuration ===
-FUND_CONFIG = {
-    "PRIV": {
-        "name": "SPDR® SSGA IG Public & Private Credit ETF",
-        "url": "https://www.ssga.com/us/en/intermediary/etfs/spdr-ssga-ig-public-private-credit-etf-priv"
-    },
-    "PRSD": {
-        "name": "State Street® Short Duration IG Public & Private Credit ETF", 
-        "url": "https://www.ssga.com/us/en/intermediary/etfs/state-street-short-duration-ig-public-private-credit-etf-prsd"
-    }
-}
-
 # === Load Data Function ===
 @st.cache_data
 def load_data(fund_symbol):
@@ -35,6 +23,42 @@ def load_data(fund_symbol):
         return pd.DataFrame()
     finally:
         conn.close()
+
+# === Date Filter Section on Main Page ===
+st.markdown("---")
+
+# Preload dates for both funds
+df_priv_dates = load_data("PRIV")
+df_prsd_dates = load_data("PRSD")
+
+available_dates_priv = sorted(df_priv_dates["date"].dt.date.unique(), reverse=True) if not df_priv_dates.empty else []
+available_dates_prsd = sorted(df_prsd_dates["date"].dt.date.unique(), reverse=True) if not df_prsd_dates.empty else []
+
+col_date_priv, col_date_prsd = st.columns(2)
+
+with col_date_priv:
+    if available_dates_priv:
+        selected_date_priv = st.selectbox("📅 PRIV Current Date", available_dates_priv, key="main_priv_date")
+        st.session_state["main_priv_date"] = selected_date_priv
+
+with col_date_prsd:
+    if available_dates_prsd:
+        selected_date_prsd = st.selectbox("📅 PRSD Current Date", available_dates_prsd, key="main_prsd_date")
+        st.session_state["main_prsd_date"] = selected_date_prsd
+
+st.markdown("---")
+
+# === Fund Configuration ===
+FUND_CONFIG = {
+    "PRIV": {
+        "name": "SPDR® SSGA IG Public & Private Credit ETF",
+        "url": "https://www.ssga.com/us/en/intermediary/etfs/spdr-ssga-ig-public-private-credit-etf-priv"
+    },
+    "PRSD": {
+        "name": "State Street® Short Duration IG Public & Private Credit ETF", 
+        "url": "https://www.ssga.com/us/en/intermediary/etfs/state-street-short-duration-ig-public-private-credit-etf-prsd"
+    }
+}
 
 # === Sidebar Fund Selection for Combined Export Menu ===
 st.sidebar.markdown("---")
@@ -179,19 +203,25 @@ def render_fund_dashboard(fund_symbol, df):
     # === Sidebar Filters ===
     st.sidebar.header(f"🔎 {fund_symbol} Filters")
 
-    available_dates = sorted(df["date"].dt.date.unique(), reverse=True)
-    selected_date = st.sidebar.selectbox(f"{fund_symbol} Current Date", available_dates, key=f"{fund_symbol}_date")
+    # Get the selected date from the main page session state
+    selected_date_key = f"main_{fund_symbol}_date"
+    if selected_date_key in st.session_state:
+        selected_date = st.session_state[selected_date_key]
+    else:
+        available_dates = sorted(df["date"].dt.date.unique(), reverse=True)
+        selected_date = available_dates[0] if available_dates else None
 
     # Get previous available date
-    current_idx = available_dates.index(selected_date)
-    previous_date = available_dates[current_idx + 1] if current_idx + 1 < len(available_dates) else None
+    available_dates = sorted(df["date"].dt.date.unique(), reverse=True)
+    if selected_date and selected_date in available_dates:
+        current_idx = available_dates.index(selected_date)
+        previous_date = available_dates[current_idx + 1] if current_idx + 1 < len(available_dates) else None
+    else:
+        previous_date = None
 
-    asset_types = df["asset_breakdown"].dropna().unique()
-    selected_types = st.sidebar.multiselect(f"{fund_symbol} Asset Types", asset_types, default=asset_types, key=f"{fund_symbol}_types")
-
-    # === Filter Data by Type and Date ===
-    df_current = df[(df["date"].dt.date == selected_date) & (df["asset_breakdown"].isin(selected_types))]
-    df_previous = df[(df["date"].dt.date == previous_date) & (df["asset_breakdown"].isin(selected_types))] if previous_date else pd.DataFrame(columns=df.columns)
+    # === Filter Data by Date (no asset type filtering) ===
+    df_current = df[df["date"].dt.date == selected_date] if selected_date else pd.DataFrame()
+    df_previous = df[df["date"].dt.date == previous_date] if previous_date else pd.DataFrame(columns=df.columns)
 
     # === Index for Comparison ===
     def create_composite_key(df):
