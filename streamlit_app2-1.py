@@ -39,12 +39,10 @@ col_date_priv, col_date_prsd = st.columns(2)
 with col_date_priv:
     if available_dates_priv:
         selected_date_priv = st.selectbox("📅 PRIV Current Date", available_dates_priv, key="main_priv_date")
-        st.session_state["main_priv_date"] = selected_date_priv
 
 with col_date_prsd:
     if available_dates_prsd:
         selected_date_prsd = st.selectbox("📅 PRSD Current Date", available_dates_prsd, key="main_prsd_date")
-        st.session_state["main_prsd_date"] = selected_date_prsd
 
 st.markdown("---")
 
@@ -158,7 +156,7 @@ if not export_df.empty:
 tab1, tab2 = st.tabs(["📈 PRIV", "📊 PRSD"])
 
 # === Function to render dashboard for a specific fund ===
-def render_fund_dashboard(fund_symbol, df):
+def render_fund_dashboard(fund_symbol, df, selected_date):
     if df.empty:
         st.warning(f"No data available for {fund_symbol}")
         return
@@ -203,16 +201,10 @@ def render_fund_dashboard(fund_symbol, df):
     # === Sidebar Filters ===
     st.sidebar.header(f"🔎 {fund_symbol} Filters")
 
-    # Get the selected date from the main page session state
-    selected_date_key = f"main_{fund_symbol}_date"
-    if selected_date_key in st.session_state:
-        selected_date = st.session_state[selected_date_key]
-    else:
-        available_dates = sorted(df["date"].dt.date.unique(), reverse=True)
-        selected_date = available_dates[0] if available_dates else None
-
-    # Get previous available date
+    # Get all available dates
     available_dates = sorted(df["date"].dt.date.unique(), reverse=True)
+    
+    # Get previous available date
     if selected_date and selected_date in available_dates:
         current_idx = available_dates.index(selected_date)
         previous_date = available_dates[current_idx + 1] if current_idx + 1 < len(available_dates) else None
@@ -714,8 +706,8 @@ def render_fund_dashboard(fund_symbol, df):
 # === Render Dashboards in Tabs ===
 with tab1:
     df_priv = load_data("PRIV")
-    render_fund_dashboard("PRIV", df_priv)
+    render_fund_dashboard("PRIV", df_priv, selected_date_priv if 'selected_date_priv' in locals() else None)
 
 with tab2:
     df_prsd = load_data("PRSD")
-    render_fund_dashboard("PRSD", df_prsd)
+    render_fund_dashboard("PRSD", df_prsd, selected_date_prsd if 'selected_date_prsd' in locals() else None)
