@@ -84,73 +84,58 @@ if not export_df.empty:
         key=f"combined_bulk_type"
     )
 
-    if st.sidebar.button(f"Generate {export_fund_selection} Bulk Export", key=f"combined_bulk_generate"):
-        bulk_data = None
-        bulk_filename = ""
+    bulk_data = None
+    bulk_filename = ""
+    
+    if bulk_export_type == "All Data":
+        bulk_data = export_df.copy()
+        bulk_data["price"] = bulk_data["market_value"] / bulk_data["par_value"] * 100
+        bulk_filename = f"{export_fund_selection}_all_financial_data_{datetime.now().strftime('%Y%m%d')}.csv"
         
-        if bulk_export_type == "All Data":
-            bulk_data = export_df.copy()
+    elif bulk_export_type == "By Asset Type":
+        selected_bulk_types = st.sidebar.multiselect(f"Select {export_fund_selection} Asset Types for Bulk Export", asset_types, key=f"combined_bulk_types")
+        if selected_bulk_types:
+            bulk_data = export_df[export_df["asset_breakdown"].isin(selected_bulk_types)].copy()
             bulk_data["price"] = bulk_data["market_value"] / bulk_data["par_value"] * 100
-            bulk_filename = f"{export_fund_selection}_all_financial_data_{datetime.now().strftime('%Y%m%d')}.csv"
-            
-        elif bulk_export_type == "By Asset Type":
-            selected_bulk_types = st.sidebar.multiselect(f"Select {export_fund_selection} Asset Types for Bulk Export", asset_types, key=f"combined_bulk_types")
-            if selected_bulk_types:
-                bulk_data = export_df[export_df["asset_breakdown"].isin(selected_bulk_types)].copy()
-                bulk_data["price"] = bulk_data["market_value"] / bulk_data["par_value"] * 100
-                bulk_filename = f"{export_fund_selection}_bulk_export_{'_'.join(selected_bulk_types)}_{datetime.now().strftime('%Y%m%d')}.csv"
+            bulk_filename = f"{export_fund_selection}_bulk_export_{'_'.join(selected_bulk_types)}_{datetime.now().strftime('%Y%m%d')}.csv"
+    
+    elif bulk_export_type == "AOS Corporate Finance Only":
+        bulk_data = export_df[export_df["asset_breakdown"] == "AOS Corporate Finance"].copy()
+        bulk_data["price"] = bulk_data["market_value"] / bulk_data["par_value"] * 100
+        bulk_filename = f"{export_fund_selection}_aos_corporate_finance_{datetime.now().strftime('%Y%m%d')}.csv"
         
-        elif bulk_export_type == "AOS Corporate Finance Only":
-            bulk_data = export_df[export_df["asset_breakdown"] == "AOS Corporate Finance"].copy()
-            bulk_data["price"] = bulk_data["market_value"] / bulk_data["par_value"] * 100
-            bulk_filename = f"{export_fund_selection}_aos_corporate_finance_{datetime.now().strftime('%Y%m%d')}.csv"
-            
-        elif bulk_export_type == "Date Range All Assets":
-            min_date = export_df["date"].dt.date.min()
-            max_date = export_df["date"].dt.date.max()
-            bulk_start = st.sidebar.date_input(f"{export_fund_selection} Bulk Start Date", value=min_date, key=f"combined_bulk_start")
-            bulk_end = st.sidebar.date_input(f"{export_fund_selection} Bulk End Date", value=max_date, key=f"combined_bulk_end")
-            
-            bulk_data = export_df[
-                (export_df["date"].dt.date >= bulk_start) & 
-                (export_df["date"].dt.date <= bulk_end)
-            ].copy()
-            bulk_data["price"] = bulk_data["market_value"] / bulk_data["par_value"] * 100
-            bulk_filename = f"{export_fund_selection}_date_range_export_{bulk_start}_{bulk_end}.csv"
+    elif bulk_export_type == "Date Range All Assets":
+        min_date = export_df["date"].dt.date.min()
+        max_date = export_df["date"].dt.date.max()
+        bulk_start = st.sidebar.date_input(f"{export_fund_selection} Bulk Start Date", value=min_date, key=f"combined_bulk_start")
+        bulk_end = st.sidebar.date_input(f"{export_fund_selection} Bulk End Date", value=max_date, key=f"combined_bulk_end")
         
-        if bulk_data is not None and not bulk_data.empty:
-            # Format date for export
-            bulk_data["date"] = bulk_data["date"].dt.strftime("%Y-%m-%d")
-            
-            st.session_state[f"combined_bulk_export_data"] = bulk_data
-            st.session_state[f"combined_bulk_export_filename"] = bulk_filename
-            st.sidebar.success(f"✅ {export_fund_selection} bulk export ready! {len(bulk_data)} rows")
-        else:
-            st.sidebar.error(f"❌ No {export_fund_selection} data available for bulk export")
-
-    # Bulk download button
-    if f"combined_bulk_export_data" in st.session_state:
-        with st.sidebar.expander(f"Preview {export_fund_selection} Bulk Export Data"):
-            st.dataframe(st.session_state[f"combined_bulk_export_data"].head(10), use_container_width=True)
-
-    # === Download Section at Bottom of Sidebar ===
+        bulk_data = export_df[
+            (export_df["date"].dt.date >= bulk_start) & 
+            (export_df["date"].dt.date <= bulk_end)
+        ].copy()
+        bulk_data["price"] = bulk_data["market_value"] / bulk_data["par_value"] * 100
+        bulk_filename = f"{export_fund_selection}_date_range_export_{bulk_start}_{bulk_end}.csv"
+    
+    # Direct download button
     st.sidebar.markdown("---")
-    st.sidebar.header(f"📥 {export_fund_selection} Downloads")
-
-    # Bulk download button
-    if f"combined_bulk_export_data" in st.session_state:
-        st.sidebar.markdown(f"**{export_fund_selection} Bulk Export:**")
+    if bulk_data is not None and not bulk_data.empty:
+        # Format date for export
+        bulk_data["date"] = bulk_data["date"].dt.strftime("%Y-%m-%d")
+        
         csv_buffer = io.StringIO()
-        st.session_state[f"combined_bulk_export_data"].to_csv(csv_buffer, index=False)
+        bulk_data.to_csv(csv_buffer, index=False)
         csv_data = csv_buffer.getvalue()
         
         st.sidebar.download_button(
-            label="📥 Download CSV",
+            label=f"📥 Download {export_fund_selection} Export",
             data=csv_data,
-            file_name=st.session_state[f"combined_bulk_export_filename"],
+            file_name=bulk_filename,
             mime="text/csv",
             key=f"combined_bulk_download"
         )
+    else:
+        st.sidebar.info("Select options above to generate export")
 
 # === Create Tabs ===
 tab1, tab2 = st.tabs(["📈 PRIV", "📊 PRSD"])
@@ -164,40 +149,6 @@ def render_fund_dashboard(fund_symbol, df, selected_date):
     fund_info = FUND_CONFIG[fund_symbol]
     st.markdown(f"### {fund_info['name']} ({fund_symbol})")
     
-    # === CSV Export Functions ===
-    def get_time_series_data(asset_name, start_date, end_date):
-        """Get time series data for a specific asset within date range"""
-        filtered_df = df[
-            (df["name"] == asset_name) & 
-            (df["date"].dt.date >= start_date) & 
-            (df["date"].dt.date <= end_date)
-        ].copy()
-        
-        # Sort by date
-        filtered_df = filtered_df.sort_values("date")
-        
-        # Calculate additional metrics
-        filtered_df["price"] = filtered_df["market_value"] / filtered_df["par_value"] * 100
-        filtered_df["price_change"] = filtered_df["price"].diff()
-        filtered_df["price_pct_change"] = filtered_df["price"].pct_change() * 100
-        filtered_df["market_value_change"] = filtered_df["market_value"].diff()
-        
-        return filtered_df
-
-    def create_csv_download(dataframe, filename, key=None):
-        """Create CSV download link"""
-        csv_buffer = io.StringIO()
-        dataframe.to_csv(csv_buffer, index=False)
-        csv_data = csv_buffer.getvalue()
-        
-        return st.sidebar.download_button(
-            label="📥 Download CSV",
-            data=csv_data,
-            file_name=filename,
-            mime="text/csv",
-            key=key
-        )
-
     # === Sidebar Filters ===
     st.sidebar.header(f"🔎 {fund_symbol} Filters")
 
@@ -252,35 +203,52 @@ def render_fund_dashboard(fund_symbol, df, selected_date):
     col_export1, col_export2, col_export3 = st.columns(3)
 
     with col_export1:
-        if st.button(f"Export {fund_symbol} New Assets", key=f"{fund_symbol}_export_new"):
-            if not new_assets.empty:
-                export_new = new_assets.reset_index()[["name", "par_value", "market_value", "asset_breakdown"]]
-                st.session_state[f"{fund_symbol}_current_view_export"] = export_new
-                st.session_state[f"{fund_symbol}_current_view_filename"] = f"{fund_symbol}_new_assets_{selected_date}.csv"
+        if not new_assets.empty:
+            export_new = new_assets.reset_index()[["name", "par_value", "market_value", "asset_breakdown"]]
+            csv_buffer = io.StringIO()
+            export_new.to_csv(csv_buffer, index=False)
+            csv_data = csv_buffer.getvalue()
+            st.download_button(
+                label="📥 New Assets",
+                data=csv_data,
+                file_name=f"{fund_symbol}_new_assets_{selected_date}.csv",
+                mime="text/csv",
+                key=f"{fund_symbol}_export_new"
+            )
+        else:
+            st.info("No new assets")
 
     with col_export2:
-        if st.button(f"Export {fund_symbol} Removed Assets", key=f"{fund_symbol}_export_removed"):
-            if not removed_assets.empty:
-                export_removed = removed_assets.reset_index()[["name", "par_value", "market_value", "asset_breakdown"]]
-                st.session_state[f"{fund_symbol}_current_view_export"] = export_removed
-                st.session_state[f"{fund_symbol}_current_view_filename"] = f"{fund_symbol}_removed_assets_{selected_date}.csv"
+        if not removed_assets.empty:
+            export_removed = removed_assets.reset_index()[["name", "par_value", "market_value", "asset_breakdown"]]
+            csv_buffer = io.StringIO()
+            export_removed.to_csv(csv_buffer, index=False)
+            csv_data = csv_buffer.getvalue()
+            st.download_button(
+                label="📥 Removed Assets",
+                data=csv_data,
+                file_name=f"{fund_symbol}_removed_assets_{selected_date}.csv",
+                mime="text/csv",
+                key=f"{fund_symbol}_export_removed"
+            )
+        else:
+            st.info("No removed assets")
 
     with col_export3:
-        if st.button(f"Export {fund_symbol} Par Changes", key=f"{fund_symbol}_export_changes"):
-            if not par_changes.empty:
-                export_changes = par_changes.reset_index()[["name", "par_value_prev", "par_value", "par_change", "asset_breakdown"]]
-                st.session_state[f"{fund_symbol}_current_view_export"] = export_changes
-                st.session_state[f"{fund_symbol}_current_view_filename"] = f"{fund_symbol}_par_changes_{selected_date}.csv"
-
-    # Show download button for current view exports
-    if f"{fund_symbol}_current_view_export" in st.session_state:
-        st.sidebar.download_button(
-            label=f"📥 Download {fund_symbol} CSV",
-            data=st.session_state[f"{fund_symbol}_current_view_export"].to_csv(index=False),
-            file_name=st.session_state[f"{fund_symbol}_current_view_filename"],
-            mime="text/csv",
-            key=f"{fund_symbol}_current_view_download"
-        )
+        if not par_changes.empty:
+            export_changes = par_changes.reset_index()[["name", "par_value_prev", "par_value", "par_change", "asset_breakdown"]]
+            csv_buffer = io.StringIO()
+            export_changes.to_csv(csv_buffer, index=False)
+            csv_data = csv_buffer.getvalue()
+            st.download_button(
+                label="📥 Par Changes",
+                data=csv_data,
+                file_name=f"{fund_symbol}_par_changes_{selected_date}.csv",
+                mime="text/csv",
+                key=f"{fund_symbol}_export_changes"
+            )
+        else:
+            st.info("No par value changes")
 
     # === Changes Section ===
     st.markdown("---")
@@ -345,35 +313,35 @@ def render_fund_dashboard(fund_symbol, df, selected_date):
         # Filter to show only the selected current date
         aos_current_date = aos_df[aos_df["date"].dt.date == selected_date].copy()
 
-        # Export button for AOS current data
-        if st.button(f"Export {fund_symbol} AOS Current Data", key=f"{fund_symbol}_aos_current"):
-            if not aos_current_date.empty:
-                aos_export = aos_current_date[
-                    ["date", "name", "market_value", "par_value", "price", "price_pct_change", "market_value_change"]
-                ].copy()
-                aos_export["date"] = aos_export["date"].dt.strftime("%Y-%m-%d")
-                st.session_state[f"{fund_symbol}_aos_current_export"] = aos_export
-                st.session_state[f"{fund_symbol}_aos_current_filename"] = f"{fund_symbol}_aos_current_data_{selected_date}.csv"
-
-        if f"{fund_symbol}_aos_current_export" in st.session_state:
-            st.sidebar.download_button(
-                label=f"📥 Download {fund_symbol} AOS CSV",
-                data=st.session_state[f"{fund_symbol}_aos_current_export"].to_csv(index=False),
-                file_name=st.session_state[f"{fund_symbol}_aos_current_filename"],
-                mime="text/csv",
-                key=f"{fund_symbol}_aos_current_download"
-            )
-
         if not aos_current_date.empty:
             # Format the date column
-            aos_current_date["date_formatted"] = aos_current_date["date"].dt.strftime("%m/%d/%Y")
+            aos_current_date_display = aos_current_date.copy()
+            aos_current_date_display["date_formatted"] = aos_current_date_display["date"].dt.strftime("%m/%d/%Y")
 
             st.dataframe(
-                aos_current_date[
+                aos_current_date_display[
                     ["date_formatted", "name", "market_value", "par_value", "price", "price_pct_change", "market_value_change"]
                 ].rename(columns={"date_formatted": "date"}),
                 use_container_width=True,
                 hide_index=True
+            )
+
+            # Export button for AOS current data
+            aos_export = aos_current_date[
+                ["date", "name", "market_value", "par_value", "price", "price_pct_change", "market_value_change"]
+            ].copy()
+            aos_export["date"] = aos_export["date"].dt.strftime("%Y-%m-%d")
+            
+            csv_buffer = io.StringIO()
+            aos_export.to_csv(csv_buffer, index=False)
+            csv_data = csv_buffer.getvalue()
+            
+            st.download_button(
+                label=f"📥 Download {fund_symbol} AOS Current Data",
+                data=csv_data,
+                file_name=f"{fund_symbol}_aos_current_data_{selected_date}.csv",
+                mime="text/csv",
+                key=f"{fund_symbol}_aos_current_download"
             )
 
             # === AOS Corporate Finance Pie Chart ===
@@ -438,18 +406,17 @@ def render_fund_dashboard(fund_symbol, df, selected_date):
                 weekly_summary = combined_weekly_df.groupby(["week", "clean_name"])["par_value"].mean().reset_index()
                 
                 # Export button for weekly data
-                if st.button(f"Export {fund_symbol} Weekly Summary", key=f"{fund_symbol}_weekly"):
-                    st.session_state[f"{fund_symbol}_weekly_export"] = weekly_summary
-                    st.session_state[f"{fund_symbol}_weekly_filename"] = f"{fund_symbol}_aos_weekly_summary_{datetime.now().strftime('%Y%m%d')}.csv"
+                csv_buffer = io.StringIO()
+                weekly_summary.to_csv(csv_buffer, index=False)
+                csv_data = csv_buffer.getvalue()
                 
-                if f"{fund_symbol}_weekly_export" in st.session_state:
-                    st.sidebar.download_button(
-                        label=f"📥 Download {fund_symbol} Weekly CSV",
-                        data=st.session_state[f"{fund_symbol}_weekly_export"].to_csv(index=False),
-                        file_name=st.session_state[f"{fund_symbol}_weekly_filename"],
-                        mime="text/csv",
-                        key=f"{fund_symbol}_weekly_download"
-                    )
+                st.download_button(
+                    label=f"📥 Download {fund_symbol} Weekly Summary",
+                    data=csv_data,
+                    file_name=f"{fund_symbol}_aos_weekly_summary_{datetime.now().strftime('%Y%m%d')}.csv",
+                    mime="text/csv",
+                    key=f"{fund_symbol}_weekly_download"
+                )
                 
                 # Create stacked bar chart
                 stacked_bar_chart = alt.Chart(weekly_summary).mark_bar().encode(
@@ -526,20 +493,20 @@ def render_fund_dashboard(fund_symbol, df, selected_date):
             index_daily_sorted["MA_200"] = index_daily_sorted["Weighted Index % Change"].rolling(window=200, min_periods=1).mean()
 
             # Export button for index data
-            if st.button(f"Export {fund_symbol} Weighted Index Data", key=f"{fund_symbol}_index"):
-                index_export = index_daily_sorted[["date", "Weighted Index", "Weighted Index % Change", "MA_30", "MA_60", "MA_200"]].copy()
-                index_export["date"] = index_export["date"].dt.strftime("%Y-%m-%d")
-                st.session_state[f"{fund_symbol}_index_export"] = index_export
-                st.session_state[f"{fund_symbol}_index_filename"] = f"{fund_symbol}_weighted_index_pct_changes_{datetime.now().strftime('%Y%m%d')}.csv"
-
-            if f"{fund_symbol}_index_export" in st.session_state:
-                st.sidebar.download_button(
-                    label=f"📥 Download {fund_symbol} Index CSV",
-                    data=st.session_state[f"{fund_symbol}_index_export"].to_csv(index=False),
-                    file_name=st.session_state[f"{fund_symbol}_index_filename"],
-                    mime="text/csv",
-                    key=f"{fund_symbol}_index_download"
-                )
+            index_export = index_daily_sorted[["date", "Weighted Index", "Weighted Index % Change", "MA_30", "MA_60", "MA_200"]].copy()
+            index_export["date"] = index_export["date"].dt.strftime("%Y-%m-%d")
+            
+            csv_buffer = io.StringIO()
+            index_export.to_csv(csv_buffer, index=False)
+            csv_data = csv_buffer.getvalue()
+            
+            st.download_button(
+                label=f"📥 Download {fund_symbol} Weighted Index Data",
+                data=csv_data,
+                file_name=f"{fund_symbol}_weighted_index_pct_changes_{datetime.now().strftime('%Y%m%d')}.csv",
+                mime="text/csv",
+                key=f"{fund_symbol}_index_download"
+            )
 
             # Prepare individual asset percentage changes for charting
             individual_pct_changes = index_df.sort_values(["clean_name", "date"]).copy()
@@ -652,20 +619,20 @@ def render_fund_dashboard(fund_symbol, df, selected_date):
             last_5_df = last_5_sorted_df[last_5_sorted_df["date"].dt.date.isin(last_5_dates)].copy()
 
             # Export button for last 5 days data
-            if st.button(f"Export {fund_symbol} Last 5 Days Data", key=f"{fund_symbol}_last5"):
-                last_5_export = last_5_df[["date", "clean_name", "price", "price_pct_change", "market_value", "par_value"]].copy()
-                last_5_export["date"] = last_5_export["date"].dt.strftime("%Y-%m-%d")
-                st.session_state[f"{fund_symbol}_last_5_export"] = last_5_export
-                st.session_state[f"{fund_symbol}_last_5_filename"] = f"{fund_symbol}_last_5_days_{datetime.now().strftime('%Y%m%d')}.csv"
-
-            if f"{fund_symbol}_last_5_export" in st.session_state:
-                st.sidebar.download_button(
-                    label=f"📥 Download {fund_symbol} Last 5 Days CSV",
-                    data=st.session_state[f"{fund_symbol}_last_5_export"].to_csv(index=False),
-                    file_name=st.session_state[f"{fund_symbol}_last_5_filename"],
-                    mime="text/csv",
-                    key=f"{fund_symbol}_last_5_download"
-                )
+            last_5_export = last_5_df[["date", "clean_name", "price", "price_pct_change", "market_value", "par_value"]].copy()
+            last_5_export["date"] = last_5_export["date"].dt.strftime("%Y-%m-%d")
+            
+            csv_buffer = io.StringIO()
+            last_5_export.to_csv(csv_buffer, index=False)
+            csv_data = csv_buffer.getvalue()
+            
+            st.download_button(
+                label=f"📥 Download {fund_symbol} Last 5 Days Data",
+                data=csv_data,
+                file_name=f"{fund_symbol}_last_5_days_{datetime.now().strftime('%Y%m%d')}.csv",
+                mime="text/csv",
+                key=f"{fund_symbol}_last_5_download"
+            )
 
             # Filter out NaN percentage changes for the chart
             last_5_df_clean = last_5_df.dropna(subset=["price_pct_change"])
