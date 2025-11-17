@@ -1,5 +1,3 @@
-# streamlit_app.py
-
 import streamlit as st
 import pandas as pd
 import sqlite3
@@ -9,18 +7,6 @@ import io
 
 st.set_page_config(layout="wide")
 st.title("📊 Financial Holdings: Multi-Fund Dashboard")
-
-# === Fund Configuration ===
-FUND_CONFIG = {
-    "PRIV": {
-        "name": "SPDR® SSGA IG Public & Private Credit ETF",
-        "url": "https://www.ssga.com/us/en/intermediary/etfs/spdr-ssga-ig-public-private-credit-etf-priv"
-    },
-    "PRSD": {
-        "name": " State Street® Short Duration IG Public & Private Credit ETF", 
-        "url": "https://www.ssga.com/us/en/intermediary/etfs/state-street-short-duration-ig-public-private-credit-etf-prsd"
-    }
-}
 
 # === Load Data Function ===
 @st.cache_data
@@ -38,11 +24,139 @@ def load_data(fund_symbol):
     finally:
         conn.close()
 
+# === Date Filter Section on Main Page ===
+st.markdown("---")
+
+# Preload dates for both funds
+df_priv_dates = load_data("PRIV")
+df_prsd_dates = load_data("PRSD")
+
+available_dates_priv = sorted(df_priv_dates["date"].dt.date.unique(), reverse=True) if not df_priv_dates.empty else []
+available_dates_prsd = sorted(df_prsd_dates["date"].dt.date.unique(), reverse=True) if not df_prsd_dates.empty else []
+
+col_date_priv, col_date_prsd = st.columns(2)
+
+with col_date_priv:
+    if available_dates_priv:
+        selected_date_priv = st.selectbox("📅 PRIV Current Date", available_dates_priv, key="main_priv_date")
+
+with col_date_prsd:
+    if available_dates_prsd:
+        selected_date_prsd = st.selectbox("📅 PRSD Current Date", available_dates_prsd, key="main_prsd_date")
+
+st.markdown("---")
+
+# === Fund Configuration ===
+FUND_CONFIG = {
+    "PRIV": {
+        "name": "SPDR® SSGA IG Public & Private Credit ETF",
+        "url": "https://www.ssga.com/us/en/intermediary/etfs/spdr-ssga-ig-public-private-credit-etf-priv"
+    },
+    "PRSD": {
+        "name": "State Street® Short Duration IG Public & Private Credit ETF", 
+        "url": "https://www.ssga.com/us/en/intermediary/etfs/state-street-short-duration-ig-public-private-credit-etf-prsd"
+    }
+}
+
+# === Sidebar Fund Selection for Combined Export Menu ===
+st.sidebar.markdown("---")
+st.sidebar.header("🔄 Combined Export Menu")
+
+export_fund_selection = st.sidebar.radio(
+    "Select Fund for Export",
+    ["PRIV", "PRSD"],
+    key="export_fund_selection"
+)
+
+# Load data for the selected export fund
+export_df = load_data(export_fund_selection)
+
+# === Bulk Export Options for Combined Menu ===
+if not export_df.empty:
+    asset_types = export_df["asset_breakdown"].dropna().unique()
+    
+    st.sidebar.markdown("---")
+    st.sidebar.subheader(f"📦 {export_fund_selection} Bulk Export Options")
+
+    bulk_export_type = st.sidebar.radio(
+        f"{export_fund_selection} Bulk Export Type",
+        ["All Data", "By Asset Type", "AOS Corporate Finance Only", "Date Range All Assets"],
+        key=f"combined_bulk_type"
+    )
+
+    if st.sidebar.button(f"Generate {export_fund_selection} Bulk Export", key=f"combined_bulk_generate"):
+        bulk_data = None
+        bulk_filename = ""
+        
+        if bulk_export_type == "All Data":
+            bulk_data = export_df.copy()
+            bulk_data["price"] = bulk_data["market_value"] / bulk_data["par_value"] * 100
+            bulk_filename = f"{export_fund_selection}_all_financial_data_{datetime.now().strftime('%Y%m%d')}.csv"
+            
+        elif bulk_export_type == "By Asset Type":
+            selected_bulk_types = st.sidebar.multiselect(f"Select {export_fund_selection} Asset Types for Bulk Export", asset_types, key=f"combined_bulk_types")
+            if selected_bulk_types:
+                bulk_data = export_df[export_df["asset_breakdown"].isin(selected_bulk_types)].copy()
+                bulk_data["price"] = bulk_data["market_value"] / bulk_data["par_value"] * 100
+                bulk_filename = f"{export_fund_selection}_bulk_export_{'_'.join(selected_bulk_types)}_{datetime.now().strftime('%Y%m%d')}.csv"
+        
+        elif bulk_export_type == "AOS Corporate Finance Only":
+            bulk_data = export_df[export_df["asset_breakdown"] == "AOS Corporate Finance"].copy()
+            bulk_data["price"] = bulk_data["market_value"] / bulk_data["par_value"] * 100
+            bulk_filename = f"{export_fund_selection}_aos_corporate_finance_{datetime.now().strftime('%Y%m%d')}.csv"
+            
+        elif bulk_export_type == "Date Range All Assets":
+            min_date = export_df["date"].dt.date.min()
+            max_date = export_df["date"].dt.date.max()
+            bulk_start = st.sidebar.date_input(f"{export_fund_selection} Bulk Start Date", value=min_date, key=f"combined_bulk_start")
+            bulk_end = st.sidebar.date_input(f"{export_fund_selection} Bulk End Date", value=max_date, key=f"combined_bulk_end")
+            
+            bulk_data = export_df[
+                (export_df["date"].dt.date >= bulk_start) & 
+                (export_df["date"].dt.date <= bulk_end)
+            ].copy()
+            bulk_data["price"] = bulk_data["market_value"] / bulk_data["par_value"] * 100
+            bulk_filename = f"{export_fund_selection}_date_range_export_{bulk_start}_{bulk_end}.csv"
+        
+        if bulk_data is not None and not bulk_data.empty:
+            # Format date for export
+            bulk_data["date"] = bulk_data["date"].dt.strftime("%Y-%m-%d")
+            
+            st.session_state[f"combined_bulk_export_data"] = bulk_data
+            st.session_state[f"combined_bulk_export_filename"] = bulk_filename
+            st.sidebar.success(f"✅ {export_fund_selection} bulk export ready! {len(bulk_data)} rows")
+        else:
+            st.sidebar.error(f"❌ No {export_fund_selection} data available for bulk export")
+
+    # Bulk download button
+    if f"combined_bulk_export_data" in st.session_state:
+        with st.sidebar.expander(f"Preview {export_fund_selection} Bulk Export Data"):
+            st.dataframe(st.session_state[f"combined_bulk_export_data"].head(10), use_container_width=True)
+
+    # === Download Section at Bottom of Sidebar ===
+    st.sidebar.markdown("---")
+    st.sidebar.header(f"📥 {export_fund_selection} Downloads")
+
+    # Bulk download button
+    if f"combined_bulk_export_data" in st.session_state:
+        st.sidebar.markdown(f"**{export_fund_selection} Bulk Export:**")
+        csv_buffer = io.StringIO()
+        st.session_state[f"combined_bulk_export_data"].to_csv(csv_buffer, index=False)
+        csv_data = csv_buffer.getvalue()
+        
+        st.sidebar.download_button(
+            label="📥 Download CSV",
+            data=csv_data,
+            file_name=st.session_state[f"combined_bulk_export_filename"],
+            mime="text/csv",
+            key=f"combined_bulk_download"
+        )
+
 # === Create Tabs ===
 tab1, tab2 = st.tabs(["📈 PRIV", "📊 PRSD"])
 
 # === Function to render dashboard for a specific fund ===
-def render_fund_dashboard(fund_symbol, df):
+def render_fund_dashboard(fund_symbol, df, selected_date):
     if df.empty:
         st.warning(f"No data available for {fund_symbol}")
         return
@@ -87,154 +201,19 @@ def render_fund_dashboard(fund_symbol, df):
     # === Sidebar Filters ===
     st.sidebar.header(f"🔎 {fund_symbol} Filters")
 
+    # Get all available dates
     available_dates = sorted(df["date"].dt.date.unique(), reverse=True)
-    selected_date = st.sidebar.selectbox(f"{fund_symbol} Current Date", available_dates, key=f"{fund_symbol}_date")
-
+    
     # Get previous available date
-    current_idx = available_dates.index(selected_date)
-    previous_date = available_dates[current_idx + 1] if current_idx + 1 < len(available_dates) else None
+    if selected_date and selected_date in available_dates:
+        current_idx = available_dates.index(selected_date)
+        previous_date = available_dates[current_idx + 1] if current_idx + 1 < len(available_dates) else None
+    else:
+        previous_date = None
 
-    asset_types = df["asset_breakdown"].dropna().unique()
-    selected_types = st.sidebar.multiselect(f"{fund_symbol} Asset Types", asset_types, default=asset_types, key=f"{fund_symbol}_types")
-
-    # === CSV Export Section in Sidebar ===
-    st.sidebar.markdown("---")
-    st.sidebar.header(f"📥 {fund_symbol} CSV Export")
-
-    # Asset selection for export
-    unique_assets = sorted(df["name"].unique())
-    selected_asset = st.sidebar.selectbox(f"Select {fund_symbol} Asset for Export", unique_assets, key=f"{fund_symbol}_asset")
-
-    # Date range selection for export
-    min_date = df["date"].dt.date.min()
-    max_date = df["date"].dt.date.max()
-
-    export_start_date = st.sidebar.date_input(
-        f"{fund_symbol} Export Start Date", 
-        value=min_date,
-        min_value=min_date,
-        max_value=max_date,
-        key=f"{fund_symbol}_start"
-    )
-
-    export_end_date = st.sidebar.date_input(
-        f"{fund_symbol} Export End Date", 
-        value=max_date,
-        min_value=min_date,
-        max_value=max_date,
-        key=f"{fund_symbol}_end"
-    )
-
-    # Export options
-    export_columns = st.sidebar.multiselect(
-        f"Select {fund_symbol} Columns to Export",
-        ["date", "name", "identifier", "par_value", "market_value", "asset_breakdown", "price", "price_change", "price_pct_change", "market_value_change"],
-        default=["date", "name", "par_value", "market_value", "price", "price_change", "price_pct_change"],
-        key=f"{fund_symbol}_columns"
-    )
-
-    # Generate export data and download button
-    if st.sidebar.button(f"Generate {fund_symbol} Export Data", key=f"{fund_symbol}_generate"):
-        if selected_asset and export_start_date <= export_end_date:
-            export_data = get_time_series_data(selected_asset, export_start_date, export_end_date)
-            
-            if not export_data.empty:
-                # Select only requested columns
-                export_data_filtered = export_data[export_columns].copy()
-                
-                # Format date for better readability
-                if "date" in export_columns:
-                    export_data_filtered["date"] = export_data_filtered["date"].dt.strftime("%Y-%m-%d")
-                
-                # Store in session state for download
-                st.session_state[f"{fund_symbol}_export_data"] = export_data_filtered
-                st.session_state[f"{fund_symbol}_export_filename"] = f"{fund_symbol}_{selected_asset.replace(' ', '_')}_{export_start_date}_{export_end_date}.csv"
-                
-                st.sidebar.success(f"✅ {fund_symbol} export data generated! {len(export_data_filtered)} rows")
-            else:
-                st.sidebar.error(f"❌ No {fund_symbol} data found for selected criteria")
-        else:
-            st.sidebar.error("❌ Please check your date range")
-
-    # Show preview of export data (only show if export data exists)
-    if f"{fund_symbol}_export_data" in st.session_state:
-        with st.sidebar.expander(f"Preview {fund_symbol} Export Data"):
-            st.dataframe(st.session_state[f"{fund_symbol}_export_data"].head(10), use_container_width=True)
-
-    # === Bulk Export Options ===
-    st.sidebar.markdown("---")
-    st.sidebar.header(f"📦 {fund_symbol} Bulk Export Options")
-
-    bulk_export_type = st.sidebar.radio(
-        f"{fund_symbol} Bulk Export Type",
-        ["All Data", "By Asset Type", "AOS Corporate Finance Only", "Date Range All Assets"],
-        key=f"{fund_symbol}_bulk_type"
-    )
-
-    if st.sidebar.button(f"Generate {fund_symbol} Bulk Export", key=f"{fund_symbol}_bulk_generate"):
-        bulk_data = None
-        bulk_filename = ""
-        
-        if bulk_export_type == "All Data":
-            bulk_data = df.copy()
-            bulk_data["price"] = bulk_data["market_value"] / bulk_data["par_value"] * 100
-            bulk_filename = f"{fund_symbol}_all_financial_data_{datetime.now().strftime('%Y%m%d')}.csv"
-            
-        elif bulk_export_type == "By Asset Type":
-            selected_bulk_types = st.sidebar.multiselect(f"Select {fund_symbol} Asset Types for Bulk Export", asset_types, key=f"{fund_symbol}_bulk_types")
-            if selected_bulk_types:
-                bulk_data = df[df["asset_breakdown"].isin(selected_bulk_types)].copy()
-                bulk_data["price"] = bulk_data["market_value"] / bulk_data["par_value"] * 100
-                bulk_filename = f"{fund_symbol}_bulk_export_{'_'.join(selected_bulk_types)}_{datetime.now().strftime('%Y%m%d')}.csv"
-        
-        elif bulk_export_type == "AOS Corporate Finance Only":
-            bulk_data = df[df["asset_breakdown"] == "AOS Corporate Finance"].copy()
-            bulk_data["price"] = bulk_data["market_value"] / bulk_data["par_value"] * 100
-            bulk_filename = f"{fund_symbol}_aos_corporate_finance_{datetime.now().strftime('%Y%m%d')}.csv"
-            
-        elif bulk_export_type == "Date Range All Assets":
-            bulk_start = st.sidebar.date_input(f"{fund_symbol} Bulk Start Date", value=min_date, key=f"{fund_symbol}_bulk_start")
-            bulk_end = st.sidebar.date_input(f"{fund_symbol} Bulk End Date", value=max_date, key=f"{fund_symbol}_bulk_end")
-            
-            bulk_data = df[
-                (df["date"].dt.date >= bulk_start) & 
-                (df["date"].dt.date <= bulk_end)
-            ].copy()
-            bulk_data["price"] = bulk_data["market_value"] / bulk_data["par_value"] * 100
-            bulk_filename = f"{fund_symbol}_date_range_export_{bulk_start}_{bulk_end}.csv"
-        
-        if bulk_data is not None and not bulk_data.empty:
-            # Format date for export
-            bulk_data["date"] = bulk_data["date"].dt.strftime("%Y-%m-%d")
-            
-            st.session_state[f"{fund_symbol}_bulk_export_data"] = bulk_data
-            st.session_state[f"{fund_symbol}_bulk_export_filename"] = bulk_filename
-            st.sidebar.success(f"✅ {fund_symbol} bulk export ready! {len(bulk_data)} rows")
-        else:
-            st.sidebar.error(f"❌ No {fund_symbol} data available for bulk export")
-
-    # Bulk download button
-    if f"{fund_symbol}_bulk_export_data" in st.session_state:
-        with st.sidebar.expander(f"Preview {fund_symbol} Bulk Export Data"):
-            st.dataframe(st.session_state[f"{fund_symbol}_bulk_export_data"].head(10), use_container_width=True)
-
-    # === Download Section at Bottom of Sidebar ===
-    st.sidebar.markdown("---")
-    st.sidebar.header(f"📥 {fund_symbol} Downloads")
-
-    # Individual asset download button
-    if f"{fund_symbol}_export_data" in st.session_state:
-        st.sidebar.markdown(f"**{fund_symbol} Individual Asset Export:**")
-        create_csv_download(st.session_state[f"{fund_symbol}_export_data"], st.session_state[f"{fund_symbol}_export_filename"], key=f"{fund_symbol}_individual_download")
-
-    # Bulk download button
-    if f"{fund_symbol}_bulk_export_data" in st.session_state:
-        st.sidebar.markdown(f"**{fund_symbol} Bulk Export:**")
-        create_csv_download(st.session_state[f"{fund_symbol}_bulk_export_data"], st.session_state[f"{fund_symbol}_bulk_export_filename"], key=f"{fund_symbol}_bulk_download")
-
-    # === Filter Data by Type and Date ===
-    df_current = df[(df["date"].dt.date == selected_date) & (df["asset_breakdown"].isin(selected_types))]
-    df_previous = df[(df["date"].dt.date == previous_date) & (df["asset_breakdown"].isin(selected_types))] if previous_date else pd.DataFrame(columns=df.columns)
+    # === Filter Data by Date (no asset type filtering) ===
+    df_current = df[df["date"].dt.date == selected_date] if selected_date else pd.DataFrame()
+    df_previous = df[df["date"].dt.date == previous_date] if previous_date else pd.DataFrame(columns=df.columns)
 
     # === Index for Comparison ===
     def create_composite_key(df):
@@ -727,8 +706,8 @@ def render_fund_dashboard(fund_symbol, df):
 # === Render Dashboards in Tabs ===
 with tab1:
     df_priv = load_data("PRIV")
-    render_fund_dashboard("PRIV", df_priv)
+    render_fund_dashboard("PRIV", df_priv, selected_date_priv if 'selected_date_priv' in locals() else None)
 
 with tab2:
     df_prsd = load_data("PRSD")
-    render_fund_dashboard("PRSD", df_prsd)
+    render_fund_dashboard("PRSD", df_prsd, selected_date_prsd if 'selected_date_prsd' in locals() else None)
