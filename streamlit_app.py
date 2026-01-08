@@ -27,14 +27,16 @@ def load_data(fund_symbol):
 # === Date Filter Section on Main Page ===
 st.markdown("---")
 
-# Preload dates for both funds
+# Preload dates for all funds
 df_priv_dates = load_data("PRIV")
 df_prsd_dates = load_data("PRSD")
+df_hiys_dates = load_data("HIYS")
 
 available_dates_priv = sorted(df_priv_dates["date"].dt.date.unique(), reverse=True) if not df_priv_dates.empty else []
 available_dates_prsd = sorted(df_prsd_dates["date"].dt.date.unique(), reverse=True) if not df_prsd_dates.empty else []
+available_dates_hiys = sorted(df_hiys_dates["date"].dt.date.unique(), reverse=True) if not df_hiys_dates.empty else []
 
-col_date_priv, col_date_prsd = st.columns(2)
+col_date_priv, col_date_prsd, col_date_hiys = st.columns(3)
 
 with col_date_priv:
     if available_dates_priv:
@@ -43,6 +45,10 @@ with col_date_priv:
 with col_date_prsd:
     if available_dates_prsd:
         selected_date_prsd = st.selectbox("📅 PRSD Current Date", available_dates_prsd, key="main_prsd_date")
+
+with col_date_hiys:
+    if available_dates_hiys:
+        selected_date_hiys = st.selectbox("📅 HIYS Current Date", available_dates_hiys, key="main_hiys_date")
 
 st.markdown("---")
 
@@ -55,6 +61,10 @@ FUND_CONFIG = {
     "PRSD": {
         "name": "State Street® Short Duration IG Public & Private Credit ETF", 
         "url": "https://www.ssga.com/us/en/intermediary/etfs/state-street-short-duration-ig-public-private-credit-etf-prsd"
+    },
+    "HIYS": {
+        "name": "Invesco High Yield Select ETF",
+        "url": "https://www.invesco.com/us/en/financial-products/etfs/invesco-high-yield-select-etf.html"
     }
 }
 
@@ -64,7 +74,7 @@ st.sidebar.header("🔄 Combined Export Menu")
 
 export_fund_selection = st.sidebar.radio(
     "Select Fund for Export",
-    ["PRIV", "PRSD"],
+    ["PRIV", "PRSD", "HIYS"],
     key="export_fund_selection"
 )
 
@@ -138,7 +148,7 @@ if not export_df.empty:
         st.sidebar.info("Select options above to generate export")
 
 # === Create Tabs ===
-tab1, tab2 = st.tabs(["📈 PRIV", "📊 PRSD"])
+tab1, tab2, tab3 = st.tabs(["📈 PRIV", "📊 PRSD", "🔄 HIYS Comparison"])
 
 # === Function to render dashboard for a specific fund ===
 def render_fund_dashboard(fund_symbol, df, selected_date):
@@ -667,6 +677,244 @@ def render_fund_dashboard(fund_symbol, df, selected_date):
     It is presented for academic and research purposes only.
     """)
 
+
+# === Function to render HIYS comparison dashboard ===
+def render_hiys_comparison():
+    st.markdown("### 🔄 AP Grange Holdings LLC - Cross-Fund Price Comparison")
+    st.markdown("Compare the price (Market Value / Par Value × 100) of AP Grange Holdings LLC across PRIV, PRSD, and HIYS funds.")
+    
+    # Load data for all three funds
+    df_priv = load_data("PRIV")
+    df_prsd = load_data("PRSD")
+    df_hiys = load_data("HIYS")
+    
+    # Function to extract AP Grange data and calculate price
+    def get_ap_grange_data(df, fund_name):
+        if df.empty:
+            return pd.DataFrame()
+        
+        # Filter for AP Grange Holdings LLC (case-insensitive search)
+        ap_grange_df = df[df["name"].str.upper().str.contains("AP GRANGE HOLDINGS", na=False)].copy()
+        
+        if ap_grange_df.empty:
+            return pd.DataFrame()
+        
+        # Calculate price = market_value / par_value * 100
+        ap_grange_df["price"] = ap_grange_df["market_value"] / ap_grange_df["par_value"] * 100
+        ap_grange_df["fund"] = fund_name
+        ap_grange_df["date"] = pd.to_datetime(ap_grange_df["date"])
+        
+        return ap_grange_df[["date", "name", "market_value", "par_value", "price", "fund"]]
+    
+    # Get AP Grange data from each fund
+    priv_ap_grange = get_ap_grange_data(df_priv, "PRIV")
+    prsd_ap_grange = get_ap_grange_data(df_prsd, "PRSD")
+    hiys_ap_grange = get_ap_grange_data(df_hiys, "HIYS")
+    
+    # Combine all data
+    all_ap_grange = pd.concat([priv_ap_grange, prsd_ap_grange, hiys_ap_grange], ignore_index=True)
+    
+    if all_ap_grange.empty:
+        st.warning("No AP Grange Holdings LLC data found in any fund.")
+        return
+    
+    # Sort by date
+    all_ap_grange = all_ap_grange.sort_values(["fund", "date"])
+    
+    # Calculate daily price change per fund
+    all_ap_grange["price_pct_change"] = all_ap_grange.groupby("fund")["price"].pct_change() * 100
+    
+    # === Summary Metrics ===
+    st.markdown("---")
+    st.subheader("📊 Current Price Comparison")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    # Get latest price for each fund
+    for col, fund_name, fund_df in [(col1, "PRIV", priv_ap_grange), 
+                                      (col2, "PRSD", prsd_ap_grange), 
+                                      (col3, "HIYS", hiys_ap_grange)]:
+        with col:
+            if not fund_df.empty:
+                # Sort by date and calculate pct change for this fund
+                fund_df_sorted = fund_df.sort_values("date").copy()
+                fund_df_sorted["price_pct_change"] = fund_df_sorted["price"].pct_change() * 100
+                
+                latest = fund_df_sorted.iloc[-1]
+                latest_pct = fund_df_sorted["price_pct_change"].iloc[-1] if len(fund_df_sorted) > 1 else None
+                
+                st.metric(
+                    label=f"{fund_name} Price",
+                    value=f"{latest['price']:.4f}",
+                    delta=f"{latest_pct:.2f}%" if latest_pct is not None and pd.notna(latest_pct) else None
+                )
+                st.caption(f"As of {latest['date'].strftime('%m/%d/%Y')}")
+            else:
+                st.info(f"No {fund_name} data")
+    
+    # === Price Comparison Table ===
+    st.markdown("---")
+    st.subheader("📋 Asset-Level Price and Value Movements")
+    
+    # Create a comparison table with latest data from each fund
+    comparison_data = []
+    for fund_name, fund_df in [("PRIV", priv_ap_grange), ("PRSD", prsd_ap_grange), ("HIYS", hiys_ap_grange)]:
+        if not fund_df.empty:
+            # Sort and calculate pct change
+            fund_df_sorted = fund_df.sort_values("date").copy()
+            fund_df_sorted["price_pct_change"] = fund_df_sorted["price"].pct_change() * 100
+            
+            latest = fund_df_sorted.iloc[-1]
+            latest_pct = fund_df_sorted["price_pct_change"].iloc[-1] if len(fund_df_sorted) > 1 else None
+            
+            comparison_data.append({
+                "Fund": fund_name,
+                "Date": latest["date"].strftime("%m/%d/%Y"),
+                "Name": latest["name"],
+                "Market Value": latest["market_value"],
+                "Par Value": latest["par_value"],
+                "Price": latest["price"],
+                "Price % Change": latest_pct if pd.notna(latest_pct) else None
+            })
+    
+    if comparison_data:
+        comparison_df = pd.DataFrame(comparison_data)
+        st.dataframe(comparison_df, use_container_width=True, hide_index=True)
+        
+        # Export button
+        csv_buffer = io.StringIO()
+        comparison_df.to_csv(csv_buffer, index=False)
+        csv_data = csv_buffer.getvalue()
+        
+        st.download_button(
+            label="📥 Download Comparison Data",
+            data=csv_data,
+            file_name=f"ap_grange_comparison_{datetime.now().strftime('%Y%m%d')}.csv",
+            mime="text/csv",
+            key="hiys_comparison_download"
+        )
+    
+    # === Price Over Time Chart ===
+    st.markdown("---")
+    st.subheader("📈 Price Comparison Over Time")
+    
+    if not all_ap_grange.empty:
+        # Date range selector
+        date_range_option = st.radio(
+            "Choose date range:",
+            ["Last 30 Days", "Last 60 Days", "Last 90 Days", "All Available Data"],
+            horizontal=True,
+            key="hiys_date_range"
+        )
+        
+        chart_df = all_ap_grange.copy()
+        
+        if date_range_option != "All Available Data":
+            all_dates = sorted(chart_df["date"].dt.date.unique(), reverse=True)
+            
+            if date_range_option == "Last 30 Days":
+                num_days = 30
+            elif date_range_option == "Last 60 Days":
+                num_days = 60
+            elif date_range_option == "Last 90 Days":
+                num_days = 90
+            
+            selected_dates = all_dates[:num_days]
+            chart_df = chart_df[chart_df["date"].dt.date.isin(selected_dates)]
+        
+        # Price chart
+        price_chart = alt.Chart(chart_df).mark_line(point=True, strokeWidth=2).encode(
+            x=alt.X("date:T", title="Date", axis=alt.Axis(labelAngle=-45, format="%m/%d/%y")),
+            y=alt.Y("price:Q", title="Price (MV/PV × 100)", scale=alt.Scale(zero=False)),
+            color=alt.Color("fund:N", title="Fund", scale=alt.Scale(
+                domain=["PRIV", "PRSD", "HIYS"],
+                range=["#1f77b4", "#ff7f0e", "#2ca02c"]
+            )),
+            tooltip=[
+                alt.Tooltip("date:T", title="Date", format="%m/%d/%Y"),
+                alt.Tooltip("fund:N", title="Fund"),
+                alt.Tooltip("price:Q", title="Price", format=".4f"),
+                alt.Tooltip("market_value:Q", title="Market Value", format="$,.2f"),
+                alt.Tooltip("par_value:Q", title="Par Value", format="$,.2f")
+            ]
+        ).properties(height=400, title="AP Grange Holdings LLC - Price Comparison Across Funds")
+        
+        st.altair_chart(price_chart, use_container_width=True)
+        
+        # === Price Percentage Change Chart ===
+        st.markdown("### 📉 Daily Price % Change Comparison")
+        
+        pct_change_df = chart_df.dropna(subset=["price_pct_change"])
+        
+        if not pct_change_df.empty:
+            pct_chart = alt.Chart(pct_change_df).mark_line(point=True, strokeWidth=2).encode(
+                x=alt.X("date:T", title="Date", axis=alt.Axis(labelAngle=-45, format="%m/%d/%y")),
+                y=alt.Y("price_pct_change:Q", title="Daily % Change", scale=alt.Scale(zero=False)),
+                color=alt.Color("fund:N", title="Fund", scale=alt.Scale(
+                    domain=["PRIV", "PRSD", "HIYS"],
+                    range=["#1f77b4", "#ff7f0e", "#2ca02c"]
+                )),
+                tooltip=[
+                    alt.Tooltip("date:T", title="Date", format="%m/%d/%Y"),
+                    alt.Tooltip("fund:N", title="Fund"),
+                    alt.Tooltip("price_pct_change:Q", title="% Change", format=".2f")
+                ]
+            )
+            
+            # Add zero line
+            zero_line = alt.Chart(pd.DataFrame({'y': [0]})).mark_rule(
+                color='gray', strokeDash=[2,2], opacity=0.5
+            ).encode(y=alt.Y('y:Q'))
+            
+            combined_pct_chart = (pct_chart + zero_line).properties(
+                height=400, 
+                title="AP Grange Holdings LLC - Daily % Change Comparison"
+            )
+            
+            st.altair_chart(combined_pct_chart, use_container_width=True)
+        
+        # === Historical Data Table ===
+        st.markdown("---")
+        st.subheader("📜 Historical Data")
+        
+        # Pivot table showing prices by date and fund
+        pivot_df = chart_df.pivot_table(
+            index="date",
+            columns="fund",
+            values="price",
+            aggfunc="first"
+        ).reset_index()
+        
+        pivot_df["date"] = pivot_df["date"].dt.strftime("%m/%d/%Y")
+        pivot_df = pivot_df.sort_values("date", ascending=False)
+        
+        st.dataframe(pivot_df, use_container_width=True, hide_index=True)
+        
+        # Export historical data
+        export_df = all_ap_grange.copy()
+        export_df["date"] = export_df["date"].dt.strftime("%Y-%m-%d")
+        
+        csv_buffer = io.StringIO()
+        export_df.to_csv(csv_buffer, index=False)
+        csv_data = csv_buffer.getvalue()
+        
+        st.download_button(
+            label="📥 Download Full Historical Data",
+            data=csv_data,
+            file_name=f"ap_grange_historical_{datetime.now().strftime('%Y%m%d')}.csv",
+            mime="text/csv",
+            key="hiys_historical_download"
+        )
+    
+    # === Disclosure ===
+    st.markdown("---")
+    st.markdown("""
+    **Disclosure:** All information displayed here is public and is not in any way to be construed as investment advice or solicitation. 
+    Data is sourced from SSGA (PRIV, PRSD) and Invesco (HIYS) and we make no claims to veracity or accuracy of the data. 
+    It is presented for academic and research purposes only.
+    """)
+
+
 # === Render Dashboards in Tabs ===
 with tab1:
     df_priv = load_data("PRIV")
@@ -675,3 +923,6 @@ with tab1:
 with tab2:
     df_prsd = load_data("PRSD")
     render_fund_dashboard("PRSD", df_prsd, selected_date_prsd if 'selected_date_prsd' in locals() else None)
+
+with tab3:
+    render_hiys_comparison()
