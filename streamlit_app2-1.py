@@ -694,7 +694,7 @@ def render_hiys_comparison():
             return pd.DataFrame()
         
         # Filter for AP Grange Holdings LLC (case-insensitive search)
-        ap_grange_df = df[df["name"].str.upper().str.contains("AP GRANGE", na=False)].copy()
+        ap_grange_df = df[df["name"].str.upper().str.contains("AP GRANGE HOLDINGS", na=False)].copy()
         
         if ap_grange_df.empty:
             return pd.DataFrame()
