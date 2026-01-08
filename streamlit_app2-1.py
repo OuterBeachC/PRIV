@@ -736,11 +736,17 @@ def render_hiys_comparison():
                                       (col3, "HIYS", hiys_ap_grange)]:
         with col:
             if not fund_df.empty:
-                latest = fund_df.loc[fund_df["date"].idxmax()]
+                # Sort by date and calculate pct change for this fund
+                fund_df_sorted = fund_df.sort_values("date").copy()
+                fund_df_sorted["price_pct_change"] = fund_df_sorted["price"].pct_change() * 100
+                
+                latest = fund_df_sorted.iloc[-1]
+                latest_pct = fund_df_sorted["price_pct_change"].iloc[-1] if len(fund_df_sorted) > 1 else None
+                
                 st.metric(
                     label=f"{fund_name} Price",
                     value=f"{latest['price']:.4f}",
-                    delta=f"{fund_df['price_pct_change'].iloc[-1]:.2f}%" if len(fund_df) > 1 and pd.notna(fund_df['price_pct_change'].iloc[-1]) else None
+                    delta=f"{latest_pct:.2f}%" if latest_pct is not None and pd.notna(latest_pct) else None
                 )
                 st.caption(f"As of {latest['date'].strftime('%m/%d/%Y')}")
             else:
@@ -754,8 +760,13 @@ def render_hiys_comparison():
     comparison_data = []
     for fund_name, fund_df in [("PRIV", priv_ap_grange), ("PRSD", prsd_ap_grange), ("HIYS", hiys_ap_grange)]:
         if not fund_df.empty:
-            latest = fund_df.loc[fund_df["date"].idxmax()].copy()
-            latest_pct = fund_df['price_pct_change'].iloc[-1] if len(fund_df) > 1 else None
+            # Sort and calculate pct change
+            fund_df_sorted = fund_df.sort_values("date").copy()
+            fund_df_sorted["price_pct_change"] = fund_df_sorted["price"].pct_change() * 100
+            
+            latest = fund_df_sorted.iloc[-1]
+            latest_pct = fund_df_sorted["price_pct_change"].iloc[-1] if len(fund_df_sorted) > 1 else None
+            
             comparison_data.append({
                 "Fund": fund_name,
                 "Date": latest["date"].strftime("%m/%d/%Y"),
@@ -763,7 +774,7 @@ def render_hiys_comparison():
                 "Market Value": latest["market_value"],
                 "Par Value": latest["par_value"],
                 "Price": latest["price"],
-                "Price % Change": latest_pct
+                "Price % Change": latest_pct if pd.notna(latest_pct) else None
             })
     
     if comparison_data:
