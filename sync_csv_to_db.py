@@ -1,4 +1,4 @@
-# sync_csv_to_db.py (Enhanced with XLSX conversion and auto-download)
+# sync_csv_to_db.py (Enhanced with XLSX conversion, auto-download, and Invesco support)
 import pandas as pd
 import sqlite3
 import sys
@@ -7,6 +7,15 @@ import argparse
 from datetime import datetime
 import requests
 import re
+
+# =============================================================================
+# INVESCO CONFIGURATION
+# =============================================================================
+INVESCO_TARGET_COMPANY = "AP Grange Holdings LLC"
+
+# =============================================================================
+# SSGA DOWNLOAD FUNCTIONS
+# =============================================================================
 
 def download_latest_priv_xlsx(output_path):
     url = "https://www.ssga.com/us/en/intermediary/library-content/products/fund-data/etfs/us/holdings-daily-us-en-priv.xlsx"
@@ -25,6 +34,174 @@ def download_latest_priv_xlsx(output_path):
     except Exception as e:
         print(f"Error downloading file: {e}")
         return False
+
+# =============================================================================
+# INVESCO FUNCTIONS
+# =============================================================================
+
+def extract_date_from_invesco_csv(filepath: str) -> str:
+    """
+    Extract the date from the last line of the Invesco CSV file.
+    The format is: # as of 2026-01-07
+    Returns date in M/D/YYYY format.
+    """
+    try:
+        with open(filepath, 'r', encoding='utf-8-sig') as f:
+            lines = f.readlines()
+        
+        # Find the line with the date (usually last non-empty line)
+        for line in reversed(lines):
+            line = line.strip()
+            if line.startswith('# as of'):
+                # Extract date: "# as of 2026-01-07"
+                date_str = line.replace('# as of', '').strip()
+                # Parse and reformat
+                parsed_date = datetime.strptime(date_str, '%Y-%m-%d')
+                # Format as M/D/YYYY (no leading zeros)
+                if os.name == 'nt':
+                    formatted_date = parsed_date.strftime("%#m/%#d/%Y")
+                else:
+                    formatted_date = parsed_date.strftime("%-m/%-d/%Y")
+                print(f"Extracted date from Invesco file: {formatted_date}")
+                return formatted_date
+        
+        print("Warning: Could not find date in Invesco file")
+        return None
+        
+    except Exception as e:
+        print(f"Error extracting date from Invesco file: {e}")
+        return None
+
+
+def delete_invesco_file(filepath: str) -> bool:
+    """
+    Delete the Invesco CSV file after successful data extraction.
+    
+    Args:
+        filepath: Path to the Invesco CSV file to delete
+    
+    Returns:
+        True if file was deleted successfully, False otherwise
+    """
+    try:
+        if os.path.exists(filepath):
+            os.remove(filepath)
+            print(f"🗑️  Deleted Invesco file: {filepath}")
+            return True
+        else:
+            print(f"Warning: Invesco file not found for deletion: {filepath}")
+            return False
+    except Exception as e:
+        print(f"Error deleting Invesco file '{filepath}': {e}")
+        return False
+
+
+def convert_invesco_csv(input_file: str, output_file: str = None) -> str:
+    """
+    Extract and transform data for AP Grange Holdings LLC from Invesco CSV.
+    
+    Args:
+        input_file: Path to the Invesco CSV file
+        output_file: Path to output CSV file (optional, auto-generated if not provided)
+    
+    Returns:
+        Path to the transformed CSV file, or None if failed.
+    """
+    print(f"\n--- Processing Invesco file: {input_file} ---")
+    print(f"Looking for: {INVESCO_TARGET_COMPANY}")
+    
+    # Read the CSV file
+    df = pd.read_csv(input_file, encoding='utf-8-sig')
+    
+    # Find the target company row
+    target_row = df[df['Company'].str.lower() == INVESCO_TARGET_COMPANY.lower()]
+    
+    if target_row.empty:
+        print(f"✗ Could not find '{INVESCO_TARGET_COMPANY}' in the file")
+        return None
+    
+    print(f"✓ Found {INVESCO_TARGET_COMPANY}")
+    
+    # Extract the row data
+    row = target_row.iloc[0]
+    
+    # Get the date from the file
+    extracted_date = extract_date_from_invesco_csv(input_file)
+    if not extracted_date:
+        print("✗ Could not extract date from file")
+        return None
+    
+    # Extract coupon and maturity for the transformed name
+    coupon = row['Coupon/ Div yield'].replace('%', '')  # "6.50%" -> "6.50"
+    maturity = row['Maturity date']  # "03/20/2045"
+    
+    # Transform name: "AP Grange Holdings LLC" -> "AP GRANGE HOLDINGS LLC 6.5 03/20/2045"
+    # Remove trailing zero from coupon if present (6.50 -> 6.5)
+    coupon_float = float(coupon)
+    if coupon_float == int(coupon_float):
+        coupon_display = str(int(coupon_float))
+    else:
+        coupon_display = str(coupon_float).rstrip('0').rstrip('.')
+    
+    transformed_name = f"{INVESCO_TARGET_COMPANY.upper()} {coupon_display} {maturity}"
+    print(f"Transformed name: {transformed_name}")
+    
+    # Clean up values
+    def clean_numeric(value):
+        """Remove $ and , from numeric values"""
+        if pd.isna(value):
+            return None
+        return str(value).replace('$', '').replace(',', '')
+    
+    def clean_percentage(value):
+        """Remove % from percentage values"""
+        if pd.isna(value):
+            return None
+        return str(value).replace('%', '')
+    
+    # Map to database structure (column names match expected DB columns)
+    transformed_data = {
+        'Date': extracted_date,
+        'Name': transformed_name,
+        'Identifier': row['CUSIP'],
+        'SEDOL': None,
+        'Weight': clean_percentage(row['% TNA']),
+        'Coupon': clean_percentage(row['Coupon/ Div yield']),
+        'Par Value': clean_numeric(row['Share/ Par']),
+        'Market Value': clean_numeric(row['Market value']),
+        'Local Currency': 'USD',
+        'Maturity': maturity,
+        'Asset Breakdown': row['Class of shares'],
+        'Source_Identifier': 'HIYS'
+    }
+    
+    # Create DataFrame with single row
+    output_df = pd.DataFrame([transformed_data])
+    
+    # Generate output filename if not provided (MMDDYYYYHIYS.csv)
+    if output_file is None:
+        date_parts = extracted_date.split('/')
+        month = date_parts[0].zfill(2)
+        day = date_parts[1].zfill(2)
+        year = date_parts[2]
+        output_filename = f"{month}{day}{year}HIYS.csv"
+        
+        # Save to same directory as input file
+        input_dir = os.path.dirname(input_file)
+        if input_dir:
+            output_file = os.path.join(input_dir, output_filename)
+        else:
+            output_file = output_filename
+    
+    output_df.to_csv(output_file, index=False)
+    print(f"✓ Saved transformed data to: {output_file}")
+    
+    return output_file
+
+
+# =============================================================================
+# XLSX FUNCTIONS
+# =============================================================================
 
 def extract_value_from_b2(input_file, sheet_name=0):
     """
@@ -315,10 +492,6 @@ def sync_csv_to_db(csv_file, db_file):
         existing_combinations = cursor.execute("SELECT DISTINCT date, source_identifier FROM financial_data").fetchall()
         existing_combinations = set((combo[0], combo[1]) for combo in existing_combinations)
         print(f"Found {len(existing_combinations)} existing date/source combinations in database")
-        if existing_combinations:
-            print("Existing combinations:")
-            for date, source in sorted(list(existing_combinations)):
-                print(f"  {date} - {source}")
     except sqlite3.OperationalError as e:
         if "no such table" in str(e):
             print("Table 'financial_data' doesn't exist yet. All data will be inserted as new.")
@@ -383,6 +556,10 @@ def main():
                        help="Sheet name or index to convert (XLSX only)")
     parser.add_argument("--keep-csv", action="store_true", 
                        help="Keep converted CSV file (don't delete after processing)")
+    parser.add_argument("--invesco", action="store_true",
+                       help="Process as Invesco CSV file (extract AP Grange Holdings LLC)")
+    parser.add_argument("--keep-invesco", action="store_true",
+                       help="Keep original Invesco file after processing (don't delete)")
     args = parser.parse_args()
 
     # --- New: Download if requested ---
@@ -399,8 +576,17 @@ def main():
     csv_file = input_file
     temp_csv_created = False
 
+    # Check if processing Invesco file
+    if args.invesco:
+        print("Invesco mode enabled. Processing Invesco CSV file...")
+        csv_file = convert_invesco_csv(input_file)
+        if csv_file is None:
+            print("❌ Failed to process Invesco file. Exiting.")
+            sys.exit(1)
+        temp_csv_created = True
+        print()
     # Check if input file is XLSX
-    if input_file.lower().endswith(('.xlsx', '.xls')):
+    elif input_file.lower().endswith(('.xlsx', '.xls')):
         print("XLSX file detected. Converting to CSV first...")
         try:
             sheet_name = int(args.sheet)
@@ -422,6 +608,11 @@ def main():
     success = sync_csv_to_db(csv_file, db_file)
 
     # Clean up temporary CSV file if it was created and not requested to keep
+
+    # Clean up original Invesco file after successful processing
+    if args.invesco and success and not args.keep_invesco:
+        if input_file != csv_file:  # Don't delete if input and output are the same
+            delete_invesco_file(input_file)
 
     if not success:
         sys.exit(1)
