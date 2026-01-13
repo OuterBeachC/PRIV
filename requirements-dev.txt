@@ -1,0 +1,11 @@
+# Development and Security Tools
+# Install with: pip install -r requirements-dev.txt
+
+# Security scanning
+pip-audit>=2.9.0
+safety>=3.2.0
+
+# Code quality (optional)
+# black>=24.0.0
+# flake8>=7.0.0
+# mypy>=1.10.0
