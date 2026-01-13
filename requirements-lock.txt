@@ -1,0 +1,72 @@
+# Requirements Lock File - PRIV Project
+# Generated on 2026-01-13
+# This file pins exact versions for reproducible builds
+# Install with: pip install -r requirements-lock.txt
+
+# Core application dependencies
+streamlit==1.52.2
+pandas==2.3.3
+numpy==2.4.1
+altair==6.0.0
+requests==2.32.5
+
+# Critical security packages (upgraded versions)
+cryptography==46.0.3
+urllib3==2.6.3
+setuptools==80.9.0
+
+# Streamlit dependencies
+blinker==1.9.0
+cachetools==5.5.3
+click==8.1.7
+gitpython==3.1.45
+pillow==11.1.0
+protobuf==5.29.4
+pyarrow==19.0.0
+pydeck==0.9.1
+tenacity==9.1.2
+tornado==6.5.4
+watchdog==6.0.0
+
+# Altair dependencies
+jinja2==3.1.6
+jsonschema==4.24.1
+narwhals==2.1.2
+typing-extensions==4.15.0
+
+# Common dependencies
+certifi==2026.1.4
+charset-normalizer==3.4.4
+idna==3.11
+markupsafe==3.0.3
+packaging==25.0
+python-dateutil==2.9.0.post0
+pytz==2025.2
+six==1.17.0
+toml==0.10.2
+tzdata==2025.3
+
+# Cryptography dependencies
+cffi==2.0.0
+pycparser==2.23
+
+# GitPython dependencies
+gitdb==4.0.12
+smmap==5.0.2
+
+# JSON Schema dependencies
+attrs==24.3.0
+jsonschema-specifications==2024.10.1
+referencing==0.37.0
+rpds-py==0.30.0
+
+# PyJWT (if needed)
+PyJWT==2.10.1
+PyYAML==6.0.3
+
+# Other utilities
+oauthlib==3.3.1
+pyparsing==3.3.1
+rich==14.2.0
+pygments==2.19.2
+wheel==0.45.1
