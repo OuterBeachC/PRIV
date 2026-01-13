@@ -14,8 +14,12 @@ def load_data(fund_symbol):
     conn = sqlite3.connect("priv_data.db")
     
     try:
-        # Filter by source_identifier column
-        df = pd.read_sql(f"SELECT * FROM financial_data WHERE source_identifier = '{fund_symbol}'", conn)
+        # Filter by source_identifier column (using parameterized query to prevent SQL injection)
+        df = pd.read_sql(
+            "SELECT * FROM financial_data WHERE source_identifier = ?",
+            conn,
+            params=(fund_symbol,)
+        )
         df["date"] = pd.to_datetime(df["date"])
         return df
     except Exception as e:
