@@ -10,6 +10,49 @@ import pandas as pd
 from datetime import datetime, timedelta
 import argparse
 import sys
+import os
+
+
+def find_database(default_name="priv_data.db"):
+    """
+    Find the database file in common locations.
+    Checks multiple locations to support both old and new file structures.
+    """
+    # Get the directory where this script is located
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+
+    # List of possible database locations (in order of preference)
+    possible_locations = [
+        # 1. Explicit path provided (will be checked in main())
+        default_name,
+
+        # 2. In the script's directory
+        os.path.join(script_dir, default_name),
+
+        # 3. In the parent directory (for src/scripts/ structure)
+        os.path.join(script_dir, "..", default_name),
+
+        # 4. Two levels up (for src/scripts/ structure)
+        os.path.join(script_dir, "..", "..", default_name),
+
+        # 5. In a data/ subdirectory from script location
+        os.path.join(script_dir, "data", default_name),
+
+        # 6. In a data/ subdirectory from parent
+        os.path.join(script_dir, "..", "data", default_name),
+
+        # 7. In a data/ subdirectory two levels up
+        os.path.join(script_dir, "..", "..", "data", default_name),
+    ]
+
+    # Check each location
+    for location in possible_locations:
+        abs_path = os.path.abspath(location)
+        if os.path.exists(abs_path):
+            return abs_path
+
+    # If not found, return the default and let it fail with a helpful error
+    return os.path.abspath(default_name)
 
 
 def load_data(db_path, fund_symbol):
@@ -645,11 +688,21 @@ def main():
 
     args = parser.parse_args()
 
+    # Find the database file in common locations
+    db_path = find_database(args.db)
+
+    # Check if database exists
+    if not os.path.exists(db_path):
+        print(f"Error: Database not found at {db_path}", file=sys.stderr)
+        print(f"\nSearched in common locations. Please specify the correct path with --db", file=sys.stderr)
+        return 1
+
     # Generate report
+    print(f"Using database: {db_path}")
     print(f"Generating weekly report for {args.fund}...")
     print(f"Looking back {args.days} trading days...")
 
-    report_data = generate_weekly_report(args.db, args.fund, args.days)
+    report_data = generate_weekly_report(db_path, args.fund, args.days)
 
     if "error" in report_data:
         print(f"Error: {report_data['error']}", file=sys.stderr)
