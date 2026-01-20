@@ -5,6 +5,7 @@ output/
 weekly_report_*.csv
 weekly_report_*.html
 weekly_report_*.md
+weekly_report_*_substack.txt
 
 # Python cache
 __pycache__/
