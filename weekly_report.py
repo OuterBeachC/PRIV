@@ -88,14 +88,48 @@ def generate_weekly_report(db_path, fund_symbol="PRIV", days_back=7):
     # Identify removed assets
     removed_assets = df_previous_indexed[~df_previous_indexed.index.isin(df_current_indexed.index)].copy()
 
-    # Identify par value changes
-    common_assets = df_current_indexed[df_current_indexed.index.isin(df_previous_indexed.index)].copy()
-    if not df_previous_indexed.empty and not common_assets.empty:
-        common_assets["par_value_prev"] = df_previous_indexed["par_value"]
-        common_assets["par_change"] = common_assets["par_value"] - common_assets["par_value_prev"]
-        par_changes = common_assets[common_assets["par_change"] != 0].copy()
-    else:
-        par_changes = pd.DataFrame()
+    # Identify par value changes across all dates in the range
+    # Get all dates between week_ago_date and most_recent_date
+    dates_in_range = [d for d in available_dates if week_ago_date <= d <= most_recent_date]
+    dates_in_range.sort()  # Sort chronologically
+
+    # Track par value changes for each asset across all dates
+    par_changes_list = []
+
+    if len(dates_in_range) >= 2:
+        # Filter data for the entire date range
+        df_range = df[df["date"].dt.date.isin(dates_in_range)].copy()
+
+        # Add composite key
+        df_range['composite_key'] = df_range.apply(
+            lambda row: row['name'] if row['identifier'] == '-' else row['identifier'],
+            axis=1
+        )
+
+        # Sort by composite_key and date
+        df_range = df_range.sort_values(['composite_key', 'date'])
+
+        # For each asset, calculate par value changes between consecutive dates
+        for asset_key in df_range['composite_key'].unique():
+            asset_data = df_range[df_range['composite_key'] == asset_key].copy()
+
+            # Skip if asset only appears once in the range
+            if len(asset_data) < 2:
+                continue
+
+            # Calculate changes between consecutive dates
+            asset_data['par_change'] = asset_data['par_value'].diff()
+
+            # Get rows where par value changed (skip first row which will be NaN)
+            changes = asset_data[asset_data['par_change'].notna() & (asset_data['par_change'] != 0)]
+
+            for _, row in changes.iterrows():
+                par_changes_list.append({
+                    'date': row['date'],
+                    'name': row['name'],
+                    'par_change': row['par_change'],
+                    'asset_breakdown': row['asset_breakdown']
+                })
 
     # Prepare export dataframes with requested columns
 
@@ -117,11 +151,13 @@ def generate_weekly_report(db_path, fund_symbol="PRIV", days_back=7):
         removed_assets_export = pd.DataFrame(columns=["Date", "Name", "Last Price", "Asset Type"])
 
     # Par Value Changes: Date, Name, Par Change, Asset Type
-    if not par_changes.empty:
-        par_changes_export = par_changes.reset_index()[["date", "name", "par_change", "asset_breakdown"]].copy()
+    if par_changes_list:
+        par_changes_export = pd.DataFrame(par_changes_list)
         par_changes_export.columns = ["Date", "Name", "Par Change", "Asset Type"]
         par_changes_export["Date"] = pd.to_datetime(par_changes_export["Date"]).dt.strftime("%Y-%m-%d")
         par_changes_export["Par Change"] = par_changes_export["Par Change"].round(2)
+        # Sort by date (most recent first) then by name
+        par_changes_export = par_changes_export.sort_values(['Date', 'Name'], ascending=[False, True])
     else:
         par_changes_export = pd.DataFrame(columns=["Date", "Name", "Par Change", "Asset Type"])
 
@@ -136,7 +172,7 @@ def generate_weekly_report(db_path, fund_symbol="PRIV", days_back=7):
         "securities_count": len(df_current),
         "new_assets_count": len(new_assets),
         "removed_assets_count": len(removed_assets),
-        "par_changes_count": len(par_changes)
+        "par_changes_count": len(par_changes_list)
     }
 
     return {
