@@ -464,6 +464,91 @@ def export_to_html(report_data, output_file="weekly_report.html"):
     return output_file
 
 
+def export_to_substack(report_data, output_file="weekly_report_substack.txt"):
+    """Export report data to plain text format optimized for Substack copy/paste."""
+    summary = report_data["summary"]
+
+    # Create a clean, formatted text report
+    text = f"""{'='*70}
+{summary['fund']} WEEKLY REPORT
+{'='*70}
+
+Report Period: {summary['comparison_date']} to {summary['report_date']} ({summary['days_back']} days)
+
+SUMMARY STATISTICS
+{'─'*70}
+Total Market Value:    ${summary['total_market_value']:>20,.2f}
+Total Par Value:       ${summary['total_par_value']:>20,.2f}
+Securities Count:      {summary['securities_count']:>20}
+New Assets:            {summary['new_assets_count']:>20}
+Removed Assets:        {summary['removed_assets_count']:>20}
+Par Value Changes:     {summary['par_changes_count']:>20}
+
+"""
+
+    # New Assets Section
+    text += f"\n{'='*70}\n"
+    text += "NEW ASSETS\n"
+    text += f"{'='*70}\n\n"
+
+    if not report_data["new_assets"].empty:
+        for _, row in report_data["new_assets"].iterrows():
+            text += f"Date:        {row['Date']}\n"
+            text += f"Name:        {row['Name']}\n"
+            text += f"Last Price:  {row['Last Price']:.4f}\n"
+            text += f"Asset Type:  {row['Asset Type']}\n"
+            text += f"{'-'*70}\n"
+    else:
+        text += "No new assets this week\n\n"
+
+    # Removed Assets Section
+    text += f"\n{'='*70}\n"
+    text += "REMOVED ASSETS\n"
+    text += f"{'='*70}\n\n"
+
+    if not report_data["removed_assets"].empty:
+        for _, row in report_data["removed_assets"].iterrows():
+            text += f"Date:        {row['Date']}\n"
+            text += f"Name:        {row['Name']}\n"
+            text += f"Last Price:  {row['Last Price']:.4f}\n"
+            text += f"Asset Type:  {row['Asset Type']}\n"
+            text += f"{'-'*70}\n"
+    else:
+        text += "No removed assets this week\n\n"
+
+    # Par Value Changes Section
+    text += f"\n{'='*70}\n"
+    text += "PAR VALUE CHANGES\n"
+    text += f"{'='*70}\n\n"
+
+    if not report_data["par_changes"].empty:
+        for _, row in report_data["par_changes"].iterrows():
+            change_sign = "+" if row['Par Change'] > 0 else ""
+            text += f"Date:        {row['Date']}\n"
+            text += f"Name:        {row['Name']}\n"
+            text += f"Par Change:  {change_sign}${row['Par Change']:,.2f}\n"
+            text += f"Asset Type:  {row['Asset Type']}\n"
+            text += f"{'-'*70}\n"
+    else:
+        text += "No par value changes this week\n\n"
+
+    # Footer
+    text += f"\n{'='*70}\n"
+    text += "DISCLOSURE\n"
+    text += f"{'='*70}\n"
+    text += """
+All information displayed here is public and is not in any way to be
+construed as investment advice or solicitation. Data is sourced from
+public filings and we make no claims to veracity or accuracy of the
+data. It is presented for academic and research purposes only.
+"""
+
+    with open(output_file, 'w', encoding='utf-8') as f:
+        f.write(text)
+
+    return output_file
+
+
 def export_to_markdown(report_data, output_file="weekly_report.md"):
     """Export report data to Markdown format suitable for Substack."""
     summary = report_data["summary"]
@@ -548,7 +633,7 @@ def main():
     )
     parser.add_argument(
         "--format",
-        choices=["csv", "html", "markdown", "all"],
+        choices=["csv", "html", "markdown", "substack", "all"],
         default="all",
         help="Output format (default: all)"
     )
@@ -611,6 +696,14 @@ def main():
         )
         files_created.append(md_file)
         print(f"✓ Markdown file created: {md_file}")
+
+    if args.format in ["substack", "all"]:
+        substack_file = export_to_substack(
+            report_data,
+            f"{args.output_prefix}_{summary['fund']}_{summary['report_date']}_substack.txt"
+        )
+        files_created.append(substack_file)
+        print(f"✓ Substack text file created: {substack_file}")
 
     print(f"\n✅ Report generation complete! {len(files_created)} file(s) created.")
 
