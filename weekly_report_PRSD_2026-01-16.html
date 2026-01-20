@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Weekly Report - PRSD</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 0 20px;
+            color: #333;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 30px;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 8px;
+        }
+        .summary {
+            background-color: #f8f9fa;
+            border-left: 4px solid #3498db;
+            padding: 15px 20px;
+            margin: 20px 0;
+        }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .summary-item {
+            padding: 10px;
+            background: white;
+            border-radius: 5px;
+        }
+        .summary-label {
+            font-size: 0.85em;
+            color: #7f8c8d;
+            margin-bottom: 5px;
+        }
+        .summary-value {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+        }
+        th {
+            background-color: #3498db;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+        }
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #ecf0f1;
+        }
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+        .no-data {
+            color: #95a5a6;
+            font-style: italic;
+            padding: 20px;
+            text-align: center;
+        }
+        .positive {
+            color: #27ae60;
+        }
+        .negative {
+            color: #e74c3c;
+        }
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #ecf0f1;
+            font-size: 0.9em;
+            color: #7f8c8d;
+        }
+    </style>
+</head>
+<body>
+    <h1>📊 PRSD Weekly Report</h1>
+
+    <div class="summary">
+        <strong>Report Period:</strong> 2026-01-09 to 2026-01-16 (7 days)
+
+        <div class="summary-grid">
+            <div class="summary-item">
+                <div class="summary-label">Total Market Value</div>
+                <div class="summary-value">$75,247,354.45</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-label">Total Par Value</div>
+                <div class="summary-value">$79,660,877.29</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-label">Securities Count</div>
+                <div class="summary-value">114</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-label">New Assets</div>
+                <div class="summary-value">1</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-label">Removed Assets</div>
+                <div class="summary-value">1</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-label">Par Value Changes</div>
+                <div class="summary-value">30</div>
+            </div>
+        </div>
+    </div>
+
+    <h2>➕ New Assets</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Name</th>
+                <th>Last Price</th>
+                <th>Asset Type</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>2026-01-16</td>
+                <td>CARNIVAL CORP 4 08/01/2028</td>
+                <td>100.6833</td>
+                <td>Non-AOS</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2>➖ Removed Assets</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Name</th>
+                <th>Last Price</th>
+                <th>Asset Type</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>2026-01-09</td>
+                <td>OCCIDENTAL PETROLEUM CORPORATION 8.5 07/15/2027</td>
+                <td>108.1623</td>
+                <td>Non-AOS</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2>🔁 Par Value Changes</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Name</th>
+                <th>Par Change</th>
+                <th>Asset Type</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>2026-01-16</td>
+                <td>EUR CASH</td>
+                <td class="negative">-11.45</td>
+                <td>Non-AOS</td>
+            </tr>
+            <tr>
+                <td>2026-01-16</td>
+                <td>ONSLOW BAY FINANCIAL LLC OBX_25-NQM10 5.453 05/25/2065</td>
+                <td class="negative">-97,193.64</td>
+                <td>Non-AOS</td>
+            </tr>
+            <tr>
+                <td>2026-01-16</td>
+                <td>STATE STR INSTI US GOVT CL INST</td>
+                <td class="positive">+122,761.61</td>
+                <td>Non-AOS</td>
+            </tr>
+            <tr>
+                <td>2026-01-16</td>
+                <td>USD CASH</td>
+                <td class="negative">-98,029.51</td>
+                <td>Non-AOS</td>
+            </tr>
+            <tr>
+                <td>2026-01-15</td>
+                <td>EUR CASH</td>
+                <td class="negative">-94.89</td>
+                <td>Non-AOS</td>
+            </tr>
+            <tr>
+                <td>2026-01-15</td>
+                <td>LUXURY LEASE PARTNERS AUTO LEASE TRUST LLP_25 5.51 03/15/2032</td>
+                <td class="negative">-19,353.03</td>
+                <td>AOS Asset Backed Finance</td>
+            </tr>
+            <tr>
+                <td>2026-01-15</td>
+                <td>PK ALIFT LOAN FUNDING 3 LP PKAIR_24-1 7.492 09/15/2039</td>
+                <td class="negative">-15,222.59</td>
+                <td>AOS Asset Backed Finance</td>
+            </tr>
+            <tr>
+                <td>2026-01-15</td>
+                <td>PK ALIFT LOAN FUNDING 4 LP PKAIR_24-2 6.407 10/15/2039</td>
+                <td class="negative">-21,891.81</td>
+                <td>AOS Asset Backed Finance</td>
+            </tr>
+            <tr>
+                <td>2026-01-15</td>
+                <td>PK ALIFT LOAN FUNDING PKAIR_25-2 5.342 03/15/2043</td>
+                <td class="negative">-4,156.76</td>
+                <td>AOS Asset Backed Finance</td>
+            </tr>
+            <tr>
+                <td>2026-01-15</td>
+                <td>STATE STR INSTI US GOVT CL INST</td>
+                <td class="positive">+1,547,633.79</td>
+                <td>Non-AOS</td>
+            </tr>
+            <tr>
+                <td>2026-01-15</td>
+                <td>TOYOTA AUTO RECEIVABLES OWNER TRUST TAOT_24-A 4.83 10/16/2028</td>
+                <td class="negative">-36,673.34</td>
+                <td>Non-AOS</td>
+            </tr>
+            <tr>
+                <td>2026-01-15</td>
+                <td>USD CASH</td>
+                <td class="negative">-1,425,273.48</td>
+                <td>Non-AOS</td>
+            </tr>
+            <tr>
+                <td>2026-01-14</td>
+                <td>EUR CASH</td>
+                <td class="positive">+14.72</td>
+                <td>Non-AOS</td>
+            </tr>
+            <tr>
+                <td>2026-01-14</td>
+                <td>STATE STR INSTI US GOVT CL INST</td>
+                <td class="negative">-12,302,672.41</td>
+                <td>Non-AOS</td>
+            </tr>
+            <tr>
+                <td>2026-01-14</td>
+                <td>USD CASH</td>
+                <td class="positive">+12,314,411.61</td>
+                <td>Non-AOS</td>
+            </tr>
+            <tr>
+                <td>2026-01-13</td>
+                <td>EUR CASH</td>
+                <td class="negative">-50.72</td>
+                <td>Non-AOS</td>
+            </tr>
+            <tr>
+                <td>2026-01-13</td>
+                <td>STATE STR INSTI US GOVT CL INST</td>
+                <td class="positive">+15,730,227.78</td>
+                <td>Non-AOS</td>
+            </tr>
+            <tr>
+                <td>2026-01-13</td>
+                <td>USD CASH</td>
+                <td class="negative">-15,722,476.24</td>
+                <td>Non-AOS</td>
+            </tr>
+            <tr>
+                <td>2026-01-12</td>
+                <td>BANK OF AMERICA CORP 4.948 07/22/2028</td>
+                <td class="positive">+100,000.00</td>
+                <td>Non-AOS</td>
+            </tr>
+            <tr>
+                <td>2026-01-12</td>
+                <td>EUR CASH</td>
+                <td class="positive">+67.08</td>
+                <td>Non-AOS</td>
+            </tr>
+            <tr>
+                <td>2026-01-12</td>
+                <td>FEDERAL NATIONAL MORTGAGE ASSOCIATION 5 09/01/2040</td>
+                <td class="positive">+463,575.40</td>
+                <td>Non-AOS</td>
+            </tr>
+            <tr>
+                <td>2026-01-12</td>
+                <td>GOLDMAN SACHS GROUP INC/THE 3.691 06/05/2028</td>
+                <td class="positive">+100,000.00</td>
+                <td>Non-AOS</td>
+            </tr>
+            <tr>
+                <td>2026-01-12</td>
+                <td>M&T BK CORP 4.833 01/16/2029</td>
+                <td class="positive">+100,000.00</td>
+                <td>Non-AOS</td>
+            </tr>
+            <tr>
+                <td>2026-01-12</td>
+                <td>MF1 MULTIFAMILY HOUSING MORTGAGE LOAN TRUST MF1_24-FL15 6.67447 08/19/2041</td>
+                <td class="positive">+300,000.00</td>
+                <td>AOS Asset Backed Finance</td>
+            </tr>
+            <tr>
+                <td>2026-01-12</td>
+                <td>STATE STR INSTI US GOVT CL INST</td>
+                <td class="negative">-143,619.07</td>
+                <td>Non-AOS</td>
+            </tr>
+            <tr>
+                <td>2026-01-12</td>
+                <td>TREASURY NOTE 3.625 08/15/2028</td>
+                <td class="positive">+443,000.00</td>
+                <td>Non-AOS</td>
+            </tr>
+            <tr>
+                <td>2026-01-12</td>
+                <td>TREASURY NOTE 3.75 12/31/2028</td>
+                <td class="positive">+448,000.00</td>
+                <td>Non-AOS</td>
+            </tr>
+            <tr>
+                <td>2026-01-12</td>
+                <td>US 2YR NOTE MAR 26</td>
+                <td class="positive">+3,000,000.00</td>
+                <td>Non-AOS</td>
+            </tr>
+            <tr>
+                <td>2026-01-12</td>
+                <td>USD CASH</td>
+                <td class="positive">+598,232.23</td>
+                <td>Non-AOS</td>
+            </tr>
+            <tr>
+                <td>2026-01-12</td>
+                <td>WELLS FARGO & COMPANY 3.196 06/17/2027</td>
+                <td class="positive">+100,000.00</td>
+                <td>Non-AOS</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="footer">
+        <strong>Disclosure:</strong> All information displayed here is public and is not in any way to be construed as investment advice or solicitation.
+        Data is sourced from public filings and we make no claims to veracity or accuracy of the data.
+        It is presented for academic and research purposes only.
+    </div>
+</body>
+</html>
