@@ -1,0 +1,83 @@
+import sqlite3
+import pandas as pd
+import re
+from datetime import datetime
+
+def analyze_date_inconsistencies(db_path, table_name, date_column):
+    conn = sqlite3.connect(db_path)
+    
+    # Get all date values
+    query = f"SELECT {date_column}, COUNT(*) as count FROM {table_name} GROUP BY {date_column} ORDER BY count DESC"
+    df = pd.read_sql_query(query, conn)
+    
+    print(f"Analyzing '{date_column}' column in '{table_name}' table:")
+    print(f"Total unique date values: {len(df)}")
+    print("\n" + "="*60)
+    
+    # Categorize date formats
+    formats = {
+        'ISO_DATE': [],           # 2023-01-15
+        'US_DATE': [],            # 01/15/2023 or 1/15/2023
+        'EU_DATE': [],            # 15/01/2023 or 15-01-2023
+        'TIMESTAMP': [],          # 2023-01-15 10:30:00
+        'EPOCH': [],              # 1642204800
+        'TEXT_DATE': [],          # Jan 15, 2023
+        'INVALID': [],            # Unrecognizable
+        'NULL_EMPTY': []          # NULL or empty
+    }
+    
+    for idx, row in df.iterrows():
+        date_val = str(row[date_column])
+        count = row['count']
+        
+        if pd.isna(row[date_column]) or date_val.lower() in ['none', 'null', '', 'nan']:
+            formats['NULL_EMPTY'].append((date_val, count))
+        elif re.match(r'^\d{4}-\d{1,2}-\d{1,2}$', date_val):
+            formats['ISO_DATE'].append((date_val, count))
+        elif re.match(r'^\d{4}-\d{1,2}-\d{1,2} \d{1,2}:\d{1,2}:\d{1,2}', date_val):
+            formats['TIMESTAMP'].append((date_val, count))
+        elif re.match(r'^\d{1,2}/\d{1,2}/\d{4}$', date_val):
+            formats['US_DATE'].append((date_val, count))
+        elif re.match(r'^\d{1,2}[/-]\d{1,2}[/-]\d{4}$', date_val):
+            formats['EU_DATE'].append((date_val, count))
+        elif re.match(r'^\d{10}$', date_val):  # Unix timestamp
+            formats['EPOCH'].append((date_val, count))
+        elif re.match(r'^[A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}', date_val):
+            formats['TEXT_DATE'].append((date_val, count))
+        else:
+            formats['INVALID'].append((date_val, count))
+    
+    # Report findings
+    inconsistent_formats = 0
+    total_records = df['count'].sum()
+    
+    for format_type, values in formats.items():
+        if values:
+            inconsistent_formats += 1
+            record_count = sum(count for _, count in values)
+            percentage = (record_count / total_records) * 100
+            
+            print(f"\n{format_type}: {len(values)} unique values ({record_count} records, {percentage:.1f}%)")
+            
+            # Show examples
+            for i, (val, count) in enumerate(values[:5]):  # Show first 5 examples
+                print(f"  '{val}' ({count} times)")
+            if len(values) > 5:
+                print(f"  ... and {len(values) - 5} more")
+    
+    print(f"\n" + "="*60)
+    print(f"SUMMARY:")
+    print(f"- Found {inconsistent_formats} different date format types")
+    print(f"- Total records: {total_records}")
+    
+    if inconsistent_formats > 1:
+        print(f"⚠️  WARNING: Multiple date formats detected!")
+        print(f"   This will likely cause parsing errors.")
+    else:
+        print(f"✅ All dates appear to use consistent formatting")
+    
+    conn.close()
+    return formats
+
+# Usage
+analyze_date_inconsistencies('priv_data.db', 'financial_data', 'date')
