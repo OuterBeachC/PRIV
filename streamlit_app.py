@@ -409,12 +409,15 @@ def render_fund_dashboard(fund_symbol, df, selected_date):
 
             if weekly_data:
                 combined_weekly_df = pd.concat(weekly_data, ignore_index=True)
-                
+
                 # Apply clean name function to all AOS assets
                 combined_weekly_df["clean_name"] = combined_weekly_df["name"].apply(create_clean_name)
-                
-                # Aggregate par values by week and asset
-                weekly_summary = combined_weekly_df.groupby(["week", "clean_name"])["par_value"].mean().reset_index()
+
+                # Aggregate par values by week and asset, keeping week_end for proper sorting
+                weekly_summary = combined_weekly_df.groupby(["week", "week_end", "clean_name"])["par_value"].mean().reset_index()
+
+                # Sort by week_end date to ensure chronological order
+                weekly_summary = weekly_summary.sort_values("week_end", ascending=True)
                 
                 # Export button for weekly data
                 csv_buffer = io.StringIO()
@@ -429,9 +432,10 @@ def render_fund_dashboard(fund_symbol, df, selected_date):
                     key=f"{fund_symbol}_weekly_download"
                 )
                 
-                # Create stacked bar chart
+                # Create stacked bar chart with proper chronological sorting
+                week_order = weekly_summary.sort_values("week_end")["week"].unique().tolist()
                 stacked_bar_chart = alt.Chart(weekly_summary).mark_bar().encode(
-                    x=alt.X("week:N", title="Week", sort=alt.SortField("week", order="ascending"), 
+                    x=alt.X("week:N", title="Week", sort=week_order,
                             axis=alt.Axis(labelAngle=0)),
                     y=alt.Y("par_value:Q", title="Average Par Value"),
                     color=alt.Color("clean_name:N", title="Asset"),
@@ -889,8 +893,9 @@ def render_hiys_comparison():
             aggfunc="first"
         ).reset_index()
         
-        pivot_df["date"] = pivot_df["date"].dt.strftime("%m/%d/%Y")
+        # Sort by date BEFORE converting to string for proper chronological order
         pivot_df = pivot_df.sort_values("date", ascending=False)
+        pivot_df["date"] = pivot_df["date"].dt.strftime("%m/%d/%Y")
         
         st.dataframe(pivot_df, use_container_width=True, hide_index=True)
         
