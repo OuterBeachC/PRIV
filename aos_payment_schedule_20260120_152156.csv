@@ -1,0 +1,16 @@
+name,coupon,maturity,maturity_parsed,payment_frequency,estimated_payment_months,observations,significant_price_drops
+AGL ENERGY LTD 7.91 12/08/2035,7.91,12/08/2035,2035-12-08,Semi-annual (typical),"June, December",222,21
+AP CHIA ISSUER LLC 7.25 05/23/2050,7.25,05/23/2050,2050-05-23,Semi-annual (typical),"May, November",196,12
+AP FIDES HOLDINGS I LLC 6 11/30/2048,6,11/30/2048,2048-11-30,Semi-annual (typical),"May, November",311,44
+AP GRANGE HLDS DEFERRED INT ONLY,6.5,03/20/2045,2045-03-20,Semi-annual (typical),"March, September",311,26
+AP GRANGE HLDS SUB DEFRRD INT ONLY  03/20/2045,-,3/20/2045,2045-03-20,Semi-annual (typical),"March, September",12,0
+AP GRANGE HOLDINGS LLC 5 03/20/2045,5,3/20/2045,2045-03-20,Semi-annual (typical),"March, September",12,0
+AP GRANGE HOLDINGS LLC 6.5 03/20/2045,6.5,03/20/2045,2045-03-20,Semi-annual (typical),"March, September",311,37
+AP HERMES HOLDINGS I LLC 6.25 07/25/2048,6.25,07/25/2048,2048-07-25,Semi-annual (typical),"January, July",311,46
+AP MAIA HOLDINGS I LLC 5.5 07/28/2047,5.5,07/28/2047,2047-07-28,Semi-annual (typical),"January, July",114,25
+AP ORYX HOLDINGS LLC 6.1 09/08/2043,6.1,09/08/2043,2043-09-08,Semi-annual (typical),"March, September",248,13
+HPS CORPORATE LENDING FUND 8.67 09/14/2027,8.67,09/14/2027,2027-09-14,Semi-annual (typical),"March, September",45,3
+HPS CORPORATE LENDING FUND 8.8 09/14/2028,8.8,09/14/2028,2028-09-14,Semi-annual (typical),"March, September",5,0
+NORTH HAVEN PRIVATE INCOME FUND LLC 8.92 03/01/2027,8.92,03/01/2027,2027-03-01,Semi-annual (typical),"March, September",145,11
+VB DPR Fin 6.83781 03/15/2035,6.83781,03/15/2035,2035-03-15,Semi-annual (typical),"March, September",82,2
+VB DPR Fin 7.11847 03/15/2035,7.11847,03/15/2035,2035-03-15,Semi-annual (typical),"March, September",36,5
