@@ -36,6 +36,13 @@ SSGA_FILES = {
 
 INVESCO_TICKERS = ["HIYS", "GTO", "GTOC"]
 
+# Invesco expected filenames (downloaded by WebSitechecker)
+INVESCO_FILES = {
+    "HIYS": "invesco_high_yield_select_etf-monthly_holdings.csv",
+    "GTO": "invesco_total_return_bond_etf-monthly_holdings.csv",
+    "GTOC": "invesco_core_fixed_income_etf-monthly_holdings.csv"
+}
+
 # Database configuration
 DEFAULT_DB = "priv_data.db"
 
@@ -94,17 +101,10 @@ def verify_files_exist():
         if not os.path.exists(filename):
             missing.append(f"SSGA {name}: {filename}")
 
-    # Check Invesco files - we need at least one CSV per ticker
-    invesco_csv_files = glob.glob("*.csv")
-
-    # Since Invesco files may have variable names, we'll just check if we have
-    # at least the expected number of CSV files
-    # A more robust check would parse the CSV filenames
-    if len(invesco_csv_files) < len(INVESCO_TICKERS):
-        print_status(
-            f"Expected at least {len(INVESCO_TICKERS)} Invesco CSV files, found {len(invesco_csv_files)}",
-            "warning"
-        )
+    # Check Invesco files - check for exact filenames
+    for ticker, filename in INVESCO_FILES.items():
+        if not os.path.exists(filename):
+            missing.append(f"Invesco {ticker}: {filename}")
 
     return (len(missing) == 0, missing)
 
@@ -229,6 +229,26 @@ def step3_process_ssga_files(db_file):
     return all_success
 
 
+def is_invesco_download(filename):
+    """
+    Check if a CSV file is a raw Invesco download from WebSitechecker.
+
+    Args:
+        filename: The CSV filename to check
+
+    Returns:
+        bool: True if the file appears to be a raw Invesco download
+    """
+    basename = os.path.basename(filename).lower()
+
+    # Invesco files typically contain "invesco" in the name
+    # Examples: invesco_high_yield_select_etf-monthly_holdings.csv
+    if "invesco" in basename and basename.endswith(".csv"):
+        return True
+
+    return False
+
+
 def is_processed_csv(filename):
     """
     Check if a CSV file is already processed (MMDDYYYYTICKER.csv format).
@@ -262,15 +282,16 @@ def step4_process_invesco_files(db_file):
     # Find all CSV files (Invesco downloads)
     all_csv_files = glob.glob("*.csv")
 
-    # Filter out already-processed files (MMDDYYYYTICKER.csv format)
-    csv_files = [f for f in all_csv_files if not is_processed_csv(f)]
+    # Filter to only Invesco download files
+    csv_files = [f for f in all_csv_files if is_invesco_download(f)]
 
     if not csv_files:
-        print_status("No raw Invesco CSV files found to process", "warning")
-        print_status(f"Found {len(all_csv_files)} total CSV files, but all appear to be already processed", "info")
+        print_status("No Invesco CSV files found to process", "warning")
+        print_status(f"Found {len(all_csv_files)} total CSV files, but none appear to be Invesco downloads", "info")
+        print_status("Invesco files should contain 'invesco' in the filename", "info")
         return False
 
-    print_status(f"Found {len(csv_files)} raw Invesco CSV file(s) to process", "info")
+    print_status(f"Found {len(csv_files)} Invesco CSV file(s) to process", "info")
     for f in csv_files:
         print(f"    - {f}")
 
@@ -287,9 +308,26 @@ def step4_process_invesco_files(db_file):
     for ticker in INVESCO_TICKERS:
         print(f"\n--- Processing {ticker} ---")
 
-        # Find CSV file that likely corresponds to this ticker
-        # This is a heuristic - files might be named like "HIYS_*.csv" or similar
-        matching_files = [f for f in csv_files if ticker.lower() in f.lower()]
+        # Find CSV file that corresponds to this ticker
+        # First, try to find the exact expected filename
+        expected_filename = INVESCO_FILES.get(ticker)
+        matching_files = []
+
+        if expected_filename and expected_filename in csv_files:
+            matching_files.append(expected_filename)
+        else:
+            # Fallback: search by patterns in filename
+            ticker_patterns = {
+                "HIYS": ["high_yield_select", "hiys"],
+                "GTO": ["total_return_bond", "gto"],
+                "GTOC": ["core_fixed_income", "gtoc"]
+            }
+            patterns = ticker_patterns.get(ticker, [ticker.lower()])
+
+            for csv_file in csv_files:
+                csv_lower = csv_file.lower()
+                if any(pattern in csv_lower for pattern in patterns):
+                    matching_files.append(csv_file)
 
         if not matching_files:
             print_status(f"No CSV file found for ticker {ticker}", "warning")
@@ -299,7 +337,7 @@ def step4_process_invesco_files(db_file):
                 matching_files = [unused_files[0]]
                 print_status(f"Attempting to process {matching_files[0]} as {ticker}", "info")
             else:
-                print_status(f"No unused raw CSV files available for {ticker}", "error")
+                print_status(f"No unused Invesco files available for {ticker}", "error")
                 all_success = False
                 continue
 
