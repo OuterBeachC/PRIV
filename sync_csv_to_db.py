@@ -96,14 +96,15 @@ def delete_invesco_file(filepath: str) -> bool:
         return False
 
 
-def convert_invesco_csv(input_file: str, output_file: str = None) -> str:
+def convert_invesco_csv(input_file: str, output_file: str = None, ticker: str = "HIYS") -> str:
     """
     Extract and transform data for AP Grange Holdings LLC from Invesco CSV.
-    
+
     Args:
         input_file: Path to the Invesco CSV file
         output_file: Path to output CSV file (optional, auto-generated if not provided)
-    
+        ticker: ETF ticker symbol (e.g., 'HIYS', 'GTO', 'GTOC') for source identification
+
     Returns:
         Path to the transformed CSV file, or None if failed.
     """
@@ -172,19 +173,19 @@ def convert_invesco_csv(input_file: str, output_file: str = None) -> str:
         'Local Currency': 'USD',
         'Maturity': maturity,
         'Asset Breakdown': row['Class of shares'],
-        'Source_Identifier': 'HIYS'
+        'Source_Identifier': ticker
     }
     
     # Create DataFrame with single row
     output_df = pd.DataFrame([transformed_data])
     
-    # Generate output filename if not provided (MMDDYYYYHIYS.csv)
+    # Generate output filename if not provided (MMDDYYYYTICKER.csv)
     if output_file is None:
         date_parts = extracted_date.split('/')
         month = date_parts[0].zfill(2)
         day = date_parts[1].zfill(2)
         year = date_parts[2]
-        output_filename = f"{month}{day}{year}HIYS.csv"
+        output_filename = f"{month}{day}{year}{ticker}.csv"
         
         # Save to same directory as input file
         input_dir = os.path.dirname(input_file)
@@ -560,6 +561,8 @@ def main():
                        help="Process as Invesco CSV file (extract AP Grange Holdings LLC)")
     parser.add_argument("--keep-invesco", action="store_true",
                        help="Keep original Invesco file after processing (don't delete)")
+    parser.add_argument("--ticker", default="HIYS",
+                       help="Invesco ETF ticker symbol for source identification (default: HIYS). Options: HIYS, GTO, GTOC")
     args = parser.parse_args()
 
     # --- New: Download if requested ---
@@ -578,8 +581,8 @@ def main():
 
     # Check if processing Invesco file
     if args.invesco:
-        print("Invesco mode enabled. Processing Invesco CSV file...")
-        csv_file = convert_invesco_csv(input_file)
+        print(f"Invesco mode enabled. Processing Invesco CSV file for ticker: {args.ticker}...")
+        csv_file = convert_invesco_csv(input_file, ticker=args.ticker)
         if csv_file is None:
             print("❌ Failed to process Invesco file. Exiting.")
             sys.exit(1)
