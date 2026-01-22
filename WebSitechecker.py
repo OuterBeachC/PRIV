@@ -30,7 +30,7 @@ URLS = {
 }
 
 # Invesco ETFs (Selenium download)
-INVESCO_TICKERS = ["HIYS"]
+INVESCO_TICKERS = ["HIYS", "GTO", "GTOC"]
 INVESCO_DOWNLOAD_DIR = os.path.join(os.getcwd())
 INVESCO_HEADLESS = True  # Set to False to see browser window
 
