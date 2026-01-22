@@ -32,7 +32,7 @@ URLS = {
 # Invesco ETFs (Selenium download)
 INVESCO_TICKERS = ["HIYS", "GTO", "GTOC"]
 INVESCO_DOWNLOAD_DIR = os.path.join(os.getcwd())
-INVESCO_HEADLESS = False  # Set to False to see browser window
+INVESCO_HEADLESS = True  # Set to False to see browser window
 
 # =============================================================================
 # SSGA FUNCTIONS
