@@ -229,6 +229,24 @@ def step3_process_ssga_files(db_file):
     return all_success
 
 
+def is_processed_csv(filename):
+    """
+    Check if a CSV file is already processed (MMDDYYYYTICKER.csv format).
+
+    Args:
+        filename: The CSV filename to check
+
+    Returns:
+        bool: True if the file matches the processed format
+    """
+    import re
+    basename = os.path.basename(filename)
+    # Match pattern: 8 digits followed by uppercase letters, then .csv
+    # Example: 01072026HIYS.csv
+    pattern = r'^\d{8}[A-Z]+\.csv$'
+    return bool(re.match(pattern, basename))
+
+
 def step4_process_invesco_files(db_file):
     """
     Step 4: Process all Invesco CSV files and sync to database.
@@ -242,14 +260,25 @@ def step4_process_invesco_files(db_file):
     print_section("STEP 4: Processing Invesco Files")
 
     # Find all CSV files (Invesco downloads)
-    csv_files = glob.glob("*.csv")
+    all_csv_files = glob.glob("*.csv")
+
+    # Filter out already-processed files (MMDDYYYYTICKER.csv format)
+    csv_files = [f for f in all_csv_files if not is_processed_csv(f)]
 
     if not csv_files:
-        print_status("No Invesco CSV files found to process", "warning")
+        print_status("No raw Invesco CSV files found to process", "warning")
+        print_status(f"Found {len(all_csv_files)} total CSV files, but all appear to be already processed", "info")
         return False
+
+    print_status(f"Found {len(csv_files)} raw Invesco CSV file(s) to process", "info")
+    for f in csv_files:
+        print(f"    - {f}")
 
     all_success = True
     processed_count = 0
+
+    # Track which raw files we've used
+    raw_files_by_ticker = {}
 
     # We need to match CSV files to tickers
     # Since WebSitechecker may produce files with variable names,
@@ -264,10 +293,15 @@ def step4_process_invesco_files(db_file):
 
         if not matching_files:
             print_status(f"No CSV file found for ticker {ticker}", "warning")
-            # Try to find any unprocessed CSV
-            if csv_files:
-                matching_files = [csv_files[0]]
+            # Try to find any unprocessed CSV that hasn't been used yet
+            unused_files = [f for f in csv_files if f not in raw_files_by_ticker.values()]
+            if unused_files:
+                matching_files = [unused_files[0]]
                 print_status(f"Attempting to process {matching_files[0]} as {ticker}", "info")
+            else:
+                print_status(f"No unused raw CSV files available for {ticker}", "error")
+                all_success = False
+                continue
 
         for csv_file in matching_files[:1]:  # Process only the first match
             try:
@@ -291,6 +325,8 @@ def step4_process_invesco_files(db_file):
                 else:
                     print_status(f"Successfully processed {ticker}", "success")
                     processed_count += 1
+                    # Track which raw file was used for this ticker
+                    raw_files_by_ticker[ticker] = csv_file
                     # Remove from list to avoid reprocessing
                     csv_files.remove(csv_file)
 
@@ -321,20 +357,26 @@ def step5_cleanup(keep_files):
 
     files_to_remove = []
 
-    # SSGA XLSX files
+    # SSGA XLSX files (original downloads)
     for filename in SSGA_FILES.values():
         if os.path.exists(filename):
             files_to_remove.append(filename)
 
-    # CSV files (both Invesco originals and processed)
-    csv_files = glob.glob("*.csv")
-    files_to_remove.extend(csv_files)
+    # SSGA CSV files (converted from XLSX, these have MMDDYYYYSOURCE.csv format)
+    # We keep these as they're the processed output
+    # Only remove raw Invesco CSV downloads (not the processed MMDDYYYYTICKER.csv files)
+    all_csv_files = glob.glob("*.csv")
+    for csv_file in all_csv_files:
+        # Only remove raw Invesco downloads (files that are NOT in processed format)
+        if not is_processed_csv(csv_file):
+            files_to_remove.append(csv_file)
 
     if not files_to_remove:
         print_status("No files to clean up", "info")
         return
 
     print_status(f"Removing {len(files_to_remove)} temporary file(s)", "info")
+    print_status("Keeping processed CSV files for database sync", "info")
 
     for filepath in files_to_remove:
         try:
