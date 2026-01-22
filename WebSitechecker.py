@@ -53,23 +53,37 @@ def save_last_modified(meta_file, last_modified):
 def check_and_download_single(name, config):
     """Check and download a single file based on its configuration."""
     print(f"\n--- Checking {name.upper()} ---")
-    
+
+    # First, check if local file exists
+    if not os.path.exists(config["local_file"]):
+        print(f"Local file not found. Downloading...")
+        if download_file(config["url"], config["local_file"], name):
+            # Save the Last-Modified header for future checks
+            headers = {"User-Agent": "Mozilla/5.0"}
+            response = requests.head(config["url"], headers=headers, allow_redirects=True)
+            if response.status_code == 200:
+                last_modified = response.headers.get("Last-Modified")
+                if last_modified:
+                    save_last_modified(config["meta_file"], last_modified)
+            return True
+        return False
+
     headers = {"User-Agent": "Mozilla/5.0"}
     response = requests.head(config["url"], headers=headers, allow_redirects=True)
-    
+
     if response.status_code != 200:
         print(f"Failed to fetch headers for {name}: {response.status_code}")
         return False
-    
+
     last_modified = response.headers.get("Last-Modified")
     if not last_modified:
         print(f"No Last-Modified header found for {name}. Downloading file anyway.")
         return download_file(config["url"], config["local_file"], name)
-    
+
     print(f"Remote Last-Modified: {last_modified}")
     local_last_modified = get_last_modified(config["meta_file"])
     print(f"Local Last-Modified: {local_last_modified}")
-    
+
     if local_last_modified != last_modified:
         print(f"File {name} has been updated. Downloading new version...")
         if download_file(config["url"], config["local_file"], name):
@@ -102,11 +116,28 @@ def download_invesco_holdings(ticker: str, download_dir: str, headless: bool = T
     Download Invesco ETF holdings using Selenium.
     """
     ticker = ticker.upper()
-    
+
     # Create download directory if it doesn't exist
     os.makedirs(download_dir, exist_ok=True)
     download_dir = os.path.abspath(download_dir)
-    
+
+    # Delete old Invesco files for this ticker to avoid " (1)" filename issues
+    ticker_patterns = {
+        "HIYS": "invesco_high_yield_select_etf-monthly_holdings*.csv",
+        "GTO": "invesco_total_return_bond_etf-monthly_holdings*.csv",
+        "GTOC": "invesco_core_fixed_income_etf-monthly_holdings*.csv"
+    }
+
+    pattern = ticker_patterns.get(ticker)
+    if pattern:
+        old_files = glob.glob(os.path.join(download_dir, pattern))
+        for old_file in old_files:
+            try:
+                os.remove(old_file)
+                print(f"Deleted old file: {os.path.basename(old_file)}")
+            except Exception as e:
+                print(f"Warning: Could not delete {old_file}: {e}")
+
     # Get existing CSV files BEFORE download
     existing_files = set(glob.glob(os.path.join(download_dir, "*.csv")))
     
