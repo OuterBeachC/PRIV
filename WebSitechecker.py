@@ -239,7 +239,7 @@ def download_invesco_holdings(ticker: str, download_dir: str, headless: bool = T
                     continue
         
         if not clicked:
-            print("\n✗ Could not find Export button")
+            print("\n[ERROR] Could not find Export button")
             
             # Save screenshot for debugging
             screenshot_path = os.path.join(download_dir, "debug_screenshot.png")
@@ -267,16 +267,16 @@ def download_invesco_holdings(ticker: str, download_dir: str, headless: bool = T
             
             if new_files and not downloading:
                 latest_file = list(new_files)[0]
-                print(f"✓ Downloaded: {latest_file}")
+                print(f"[SUCCESS] Downloaded: {latest_file}")
                 return latest_file
             
             print(f"  Waiting... ({i+1}/{max_wait}s)")
-        
-        print(f"✗ No new CSV file downloaded after {max_wait} seconds")
+
+        print(f"[ERROR] No new CSV file downloaded after {max_wait} seconds")
         return None
             
     except Exception as e:
-        print(f"✗ Error: {e}")
+        print(f"[ERROR] Error: {e}")
         import traceback
         traceback.print_exc()
         return None
