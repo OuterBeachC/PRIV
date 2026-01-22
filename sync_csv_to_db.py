@@ -86,7 +86,7 @@ def delete_invesco_file(filepath: str) -> bool:
     try:
         if os.path.exists(filepath):
             os.remove(filepath)
-            print(f"🗑️  Deleted Invesco file: {filepath}")
+            print(f"[DELETED]  Deleted Invesco file: {filepath}")
             return True
         else:
             print(f"Warning: Invesco file not found for deletion: {filepath}")
@@ -118,10 +118,10 @@ def convert_invesco_csv(input_file: str, output_file: str = None, ticker: str = 
     target_row = df[df['Company'].str.lower() == INVESCO_TARGET_COMPANY.lower()]
     
     if target_row.empty:
-        print(f"✗ Could not find '{INVESCO_TARGET_COMPANY}' in the file")
+        print(f"[ERROR] Could not find '{INVESCO_TARGET_COMPANY}' in the file")
         return None
     
-    print(f"✓ Found {INVESCO_TARGET_COMPANY}")
+    print(f"[OK] Found {INVESCO_TARGET_COMPANY}")
     
     # Extract the row data
     row = target_row.iloc[0]
@@ -129,7 +129,7 @@ def convert_invesco_csv(input_file: str, output_file: str = None, ticker: str = 
     # Get the date from the file
     extracted_date = extract_date_from_invesco_csv(input_file)
     if not extracted_date:
-        print("✗ Could not extract date from file")
+        print("[ERROR] Could not extract date from file")
         return None
     
     # Extract coupon and maturity for the transformed name
@@ -195,7 +195,7 @@ def convert_invesco_csv(input_file: str, output_file: str = None, ticker: str = 
             output_file = output_filename
     
     output_df.to_csv(output_file, index=False)
-    print(f"✓ Saved transformed data to: {output_file}")
+    print(f"[OK] Saved transformed data to: {output_file}")
     
     return output_file
 
@@ -415,14 +415,14 @@ def convert_xlsx_to_csv(input_file, output_file=None, skip_rows=4, skip_footer=3
         print(f"Converting to CSV: {output_file}")
         df.to_csv(output_file, index=False)
         
-        print(f"✅ Successfully converted '{input_file}' to '{output_file}'")
+        print(f"[SUCCESS] Successfully converted '{input_file}' to '{output_file}'")
         print(f"   Rows processed: {len(df)}")
         print(f"   Columns: {len(df.columns)}")
         
         return output_file
         
     except Exception as e:
-        print(f"❌ Error during conversion: {str(e)}")
+        print(f"[ERROR] Error during conversion: {str(e)}")
         return None
 
 def sync_csv_to_db(csv_file, db_file):
@@ -459,7 +459,7 @@ def sync_csv_to_db(csv_file, db_file):
     
     # Check if 'date' column exists after normalization
     if 'date' not in df.columns:
-        print("❌ ERROR: No 'date' column found after normalization!")
+        print("[ERROR] ERROR: No 'date' column found after normalization!")
         print("Available columns:", list(df.columns))
         
         # Try to find a date-like column
@@ -474,7 +474,7 @@ def sync_csv_to_db(csv_file, db_file):
     
     # Check if 'source_identifier' column exists after normalization
     if 'source_identifier' not in df.columns:
-        print("❌ ERROR: No 'source_identifier' column found after normalization!")
+        print("[ERROR] ERROR: No 'source_identifier' column found after normalization!")
         print("Available columns:", list(df.columns))
         return False
     
@@ -537,10 +537,10 @@ def sync_csv_to_db(csv_file, db_file):
         df_new[available_columns].to_sql("financial_data", conn, if_exists="append", index=False)
         conn.close()
         
-        print(f"✅ Inserted {len(df_new)} new rows into the database.")
+        print(f"[SUCCESS] Inserted {len(df_new)} new rows into the database.")
         return True
     except Exception as e:
-        print(f"❌ Error inserting data into database: {str(e)}")
+        print(f"[ERROR] Error inserting data into database: {str(e)}")
         conn.close()
         return False
 
@@ -569,7 +569,7 @@ def main():
     if args.input_file.lower() == "download":
         xlsx_path = "holdings-daily-us-en-priv.xlsx"
         if not download_latest_priv_xlsx(xlsx_path):
-            print("❌ Could not download latest XLSX. Exiting.")
+            print("[ERROR] Could not download latest XLSX. Exiting.")
             sys.exit(1)
         input_file = xlsx_path
     else:
@@ -584,7 +584,7 @@ def main():
         print(f"Invesco mode enabled. Processing Invesco CSV file for ticker: {args.ticker}...")
         csv_file = convert_invesco_csv(input_file, ticker=args.ticker)
         if csv_file is None:
-            print("❌ Failed to process Invesco file. Exiting.")
+            print("[ERROR] Failed to process Invesco file. Exiting.")
             sys.exit(1)
         temp_csv_created = True
         print()
@@ -602,7 +602,7 @@ def main():
             sheet_name=sheet_name
         )
         if csv_file is None:
-            print("❌ Failed to convert XLSX file. Exiting.")
+            print("[ERROR] Failed to convert XLSX file. Exiting.")
             sys.exit(1)
         temp_csv_created = True
         print()

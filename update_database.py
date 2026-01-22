@@ -54,12 +54,12 @@ def print_section(title):
 def print_status(message, status="info"):
     """Print a status message with formatting."""
     symbols = {
-        "info": "ℹ",
-        "success": "✓",
-        "error": "✗",
-        "warning": "⚠"
+        "info": "[INFO]",
+        "success": "[OK]",
+        "error": "[ERROR]",
+        "warning": "[WARNING]"
     }
-    symbol = symbols.get(status, "•")
+    symbol = symbols.get(status, "[*]")
     print(f"{symbol} {message}")
 
 
