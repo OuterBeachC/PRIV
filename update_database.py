@@ -36,6 +36,13 @@ SSGA_FILES = {
 
 INVESCO_TICKERS = ["HIYS", "GTO", "GTOC"]
 
+# Invesco expected filenames (downloaded by WebSitechecker)
+INVESCO_FILES = {
+    "HIYS": "invesco_high_yield_select_etf-monthly_holdings.csv",
+    "GTO": "invesco_total_return_bond_etf-monthly_holdings.csv",
+    "GTOC": "invesco_core_fixed_income_etf-monthly_holdings.csv"
+}
+
 # Database configuration
 DEFAULT_DB = "priv_data.db"
 
@@ -94,17 +101,10 @@ def verify_files_exist():
         if not os.path.exists(filename):
             missing.append(f"SSGA {name}: {filename}")
 
-    # Check Invesco files - we need at least one CSV per ticker
-    invesco_csv_files = glob.glob("*.csv")
-
-    # Since Invesco files may have variable names, we'll just check if we have
-    # at least the expected number of CSV files
-    # A more robust check would parse the CSV filenames
-    if len(invesco_csv_files) < len(INVESCO_TICKERS):
-        print_status(
-            f"Expected at least {len(INVESCO_TICKERS)} Invesco CSV files, found {len(invesco_csv_files)}",
-            "warning"
-        )
+    # Check Invesco files - check for exact filenames
+    for ticker, filename in INVESCO_FILES.items():
+        if not os.path.exists(filename):
+            missing.append(f"Invesco {ticker}: {filename}")
 
     return (len(missing) == 0, missing)
 
@@ -305,24 +305,29 @@ def step4_process_invesco_files(db_file):
     # Since WebSitechecker may produce files with variable names,
     # we'll process each ticker and let it find the appropriate file
 
-    # Map tickers to filename patterns for better matching
-    ticker_patterns = {
-        "HIYS": ["high_yield_select", "hiys"],
-        "GTO": ["total_return_bond", "gto"],
-        "GTOC": ["core_fixed_income", "gtoc"]
-    }
-
     for ticker in INVESCO_TICKERS:
         print(f"\n--- Processing {ticker} ---")
 
-        # Find CSV file that likely corresponds to this ticker
+        # Find CSV file that corresponds to this ticker
+        # First, try to find the exact expected filename
+        expected_filename = INVESCO_FILES.get(ticker)
         matching_files = []
-        patterns = ticker_patterns.get(ticker, [ticker.lower()])
 
-        for csv_file in csv_files:
-            csv_lower = csv_file.lower()
-            if any(pattern in csv_lower for pattern in patterns):
-                matching_files.append(csv_file)
+        if expected_filename and expected_filename in csv_files:
+            matching_files.append(expected_filename)
+        else:
+            # Fallback: search by patterns in filename
+            ticker_patterns = {
+                "HIYS": ["high_yield_select", "hiys"],
+                "GTO": ["total_return_bond", "gto"],
+                "GTOC": ["core_fixed_income", "gtoc"]
+            }
+            patterns = ticker_patterns.get(ticker, [ticker.lower()])
+
+            for csv_file in csv_files:
+                csv_lower = csv_file.lower()
+                if any(pattern in csv_lower for pattern in patterns):
+                    matching_files.append(csv_file)
 
         if not matching_files:
             print_status(f"No CSV file found for ticker {ticker}", "warning")
