@@ -21,6 +21,9 @@ def load_data(fund_symbol):
             params=(fund_symbol,)
         )
         df["date"] = pd.to_datetime(df["date"])
+        # Ensure numeric columns are properly typed (handles string values from DB)
+        df["market_value"] = pd.to_numeric(df["market_value"], errors="coerce")
+        df["par_value"] = pd.to_numeric(df["par_value"], errors="coerce")
         return df
     except Exception as e:
         st.error(f"Error loading data for {fund_symbol}: {str(e)}")
