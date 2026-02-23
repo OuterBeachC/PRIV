@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(claude mcp add:*)",
+      "Bash(where:*)",
+      "Bash(powershell:*)",
+      "Bash(cmd /c \"npm list -g --depth=0 2>&1\")",
+      "Bash(cmd /c \"npm list -g --depth=0\")",
+      "Bash(cmd /c \"npm root -g\")",
+      "Bash(cmd /c:*)"
+    ]
+  }
+}
