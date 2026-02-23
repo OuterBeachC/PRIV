@@ -38,7 +38,7 @@ INVESCO_TICKERS = ["GTOH", "GTO", "GTOC"]
 
 # Invesco expected filenames (downloaded by WebSitechecker)
 INVESCO_FILES = {
-    "GTOH": "invesco_high_yield_select_etf-monthly_holdings.csv",
+    "GTOH": "invesco_short_duration_high_yield_etf-monthly_holdings.csv",
     "GTO": "invesco_total_return_bond_etf-monthly_holdings.csv",
     "GTOC": "invesco_core_fixed_income_etf-monthly_holdings.csv"
 }
@@ -318,7 +318,7 @@ def step4_process_invesco_files(db_file):
         else:
             # Fallback: search by patterns in filename
             ticker_patterns = {
-                "GTOH": ["high_yield_select", "gtoh", "hiys"],
+                "GTOH": ["short_duration_high_yield", "gtoh", "hiys"],
                 "GTO": ["total_return_bond", "gto"],
                 "GTOC": ["core_fixed_income", "gtoc"]
             }
