@@ -30,7 +30,7 @@ URLS = {
 }
 
 # Invesco ETFs (Selenium download)
-INVESCO_TICKERS = ["HIYS", "GTO", "GTOC"]
+INVESCO_TICKERS = ["GTOH", "GTO", "GTOC"]
 INVESCO_DOWNLOAD_DIR = os.path.join(os.getcwd())
 INVESCO_HEADLESS = True  # Set to False to see browser window
 
@@ -123,7 +123,7 @@ def download_invesco_holdings(ticker: str, download_dir: str, headless: bool = T
 
     # Delete old Invesco files for this ticker to avoid " (1)" filename issues
     ticker_patterns = {
-        "HIYS": "invesco_high_yield_select_etf-monthly_holdings*.csv",
+        "GTOH": "invesco_high_yield_select_etf-monthly_holdings*.csv",
         "GTO": "invesco_total_return_bond_etf-monthly_holdings*.csv",
         "GTOC": "invesco_core_fixed_income_etf-monthly_holdings*.csv"
     }

@@ -34,11 +34,11 @@ SSGA_FILES = {
     "PRSD": "holdings-daily-us-en-prsd.xlsx"
 }
 
-INVESCO_TICKERS = ["HIYS", "GTO", "GTOC"]
+INVESCO_TICKERS = ["GTOH", "GTO", "GTOC"]
 
 # Invesco expected filenames (downloaded by WebSitechecker)
 INVESCO_FILES = {
-    "HIYS": "invesco_high_yield_select_etf-monthly_holdings.csv",
+    "GTOH": "invesco_high_yield_select_etf-monthly_holdings.csv",
     "GTO": "invesco_total_return_bond_etf-monthly_holdings.csv",
     "GTOC": "invesco_core_fixed_income_etf-monthly_holdings.csv"
 }
@@ -262,7 +262,7 @@ def is_processed_csv(filename):
     import re
     basename = os.path.basename(filename)
     # Match pattern: 8 digits followed by uppercase letters, then .csv
-    # Example: 01072026HIYS.csv
+    # Example: 01072026GTOH.csv
     pattern = r'^\d{8}[A-Z]+\.csv$'
     return bool(re.match(pattern, basename))
 
@@ -318,7 +318,7 @@ def step4_process_invesco_files(db_file):
         else:
             # Fallback: search by patterns in filename
             ticker_patterns = {
-                "HIYS": ["high_yield_select", "hiys"],
+                "GTOH": ["high_yield_select", "gtoh", "hiys"],
                 "GTO": ["total_return_bond", "gto"],
                 "GTOC": ["core_fixed_income", "gtoc"]
             }
