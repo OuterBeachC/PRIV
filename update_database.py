@@ -9,7 +9,7 @@ This script orchestrates the complete workflow:
 4. Cleans up temporary files
 
 Usage:
-    python update_database.py [--db DATABASE] [--keep-files]
+    python update_database.py [--database DATABASE] [--keep-files] [--skip-download] [--only SOURCE ...]
 
 Exit codes:
     0: Success - all files downloaded and processed
@@ -42,6 +42,9 @@ INVESCO_FILES = {
     "GTO": "invesco_total_return_bond_etf-monthly_holdings.csv",
     "GTOC": "invesco_core_fixed_income_etf-monthly_holdings.csv"
 }
+
+# All valid source names (for --only flag)
+ALL_SOURCES = list(SSGA_FILES.keys()) + INVESCO_TICKERS  # ["PRIV", "PRSD", "GTOH", "GTO", "GTOC"]
 
 # Database configuration
 DEFAULT_DB = "priv_data.db"
@@ -87,9 +90,12 @@ def find_invesco_csv_files():
     return invesco_files
 
 
-def verify_files_exist():
+def verify_files_exist(selected_sources=None):
     """
     Verify all expected files exist after download.
+
+    Args:
+        selected_sources: Set of source names to check, or None for all.
 
     Returns:
         tuple: (success: bool, missing_files: list)
@@ -98,11 +104,15 @@ def verify_files_exist():
 
     # Check SSGA files
     for name, filename in SSGA_FILES.items():
+        if selected_sources and name not in selected_sources:
+            continue
         if not os.path.exists(filename):
             missing.append(f"SSGA {name}: {filename}")
 
     # Check Invesco files - check for exact filenames
     for ticker, filename in INVESCO_FILES.items():
+        if selected_sources and ticker not in selected_sources:
+            continue
         if not os.path.exists(filename):
             missing.append(f"Invesco {ticker}: {filename}")
 
@@ -152,16 +162,19 @@ def step1_download_files():
         return False
 
 
-def step2_verify_files():
+def step2_verify_files(selected_sources=None):
     """
     Step 2: Verify all expected files are present.
+
+    Args:
+        selected_sources: Set of source names to verify, or None for all.
 
     Returns:
         bool: True if all files present, False otherwise
     """
     print_section("STEP 2: Verifying Downloaded Files")
 
-    success, missing = verify_files_exist()
+    success, missing = verify_files_exist(selected_sources)
 
     if success:
         print_status("All expected SSGA files found", "success")
@@ -182,21 +195,24 @@ def step2_verify_files():
         return False
 
 
-def step3_process_ssga_files(db_file):
+def step3_process_ssga_files(db_file, selected_sources=None):
     """
-    Step 3: Process all SSGA XLSX files and sync to database.
+    Step 3: Process SSGA XLSX files and sync to database.
 
     Args:
         db_file: Path to database file
+        selected_sources: Set of source names to process, or None for all.
 
     Returns:
-        bool: True if all SSGA files processed successfully
+        bool: True if all selected SSGA files processed successfully
     """
     print_section("STEP 3: Processing SSGA Files")
 
     all_success = True
 
     for name, filename in SSGA_FILES.items():
+        if selected_sources and name not in selected_sources:
+            continue
         print(f"\n--- Processing {name} ---")
 
         try:
@@ -267,15 +283,16 @@ def is_processed_csv(filename):
     return bool(re.match(pattern, basename))
 
 
-def step4_process_invesco_files(db_file):
+def step4_process_invesco_files(db_file, selected_sources=None):
     """
-    Step 4: Process all Invesco CSV files and sync to database.
+    Step 4: Process Invesco CSV files and sync to database.
 
     Args:
         db_file: Path to database file
+        selected_sources: Set of source names to process, or None for all.
 
     Returns:
-        bool: True if all Invesco files processed successfully
+        bool: True if all selected Invesco files processed successfully
     """
     print_section("STEP 4: Processing Invesco Files")
 
@@ -305,7 +322,13 @@ def step4_process_invesco_files(db_file):
     # Since WebSitechecker may produce files with variable names,
     # we'll process each ticker and let it find the appropriate file
 
-    for ticker in INVESCO_TICKERS:
+    tickers_to_process = [t for t in INVESCO_TICKERS if not selected_sources or t in selected_sources]
+
+    if not tickers_to_process:
+        print_status("No Invesco tickers selected for processing", "info")
+        return True
+
+    for ticker in tickers_to_process:
         print(f"\n--- Processing {ticker} ---")
 
         # Find CSV file that corresponds to this ticker
@@ -375,9 +398,9 @@ def step4_process_invesco_files(db_file):
                 print_status(f"Error processing {ticker}: {e}", "error")
                 all_success = False
 
-    print(f"\nProcessed {processed_count}/{len(INVESCO_TICKERS)} Invesco tickers")
+    print(f"\nProcessed {processed_count}/{len(tickers_to_process)} Invesco tickers")
 
-    return all_success and processed_count == len(INVESCO_TICKERS)
+    return all_success and processed_count == len(tickers_to_process)
 
 
 def step5_cleanup(keep_files):
@@ -448,14 +471,26 @@ def main():
         action="store_true",
         help="Skip download step (use existing files)"
     )
+    parser.add_argument(
+        "--only",
+        nargs="+",
+        choices=ALL_SOURCES,
+        metavar="SOURCE",
+        help="Only process these sources (choices: %(choices)s). Omit to process all."
+    )
 
     args = parser.parse_args()
+
+    # Determine which sources to process
+    selected_sources = set(args.only) if args.only else set(ALL_SOURCES)
 
     start_time = datetime.now()
 
     print("="*80)
     print("  DATABASE UPDATE WORKFLOW")
     print(f"  Started: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+    if args.only:
+        print(f"  Sources: {', '.join(sorted(selected_sources))}")
     print("="*80)
 
     # Track overall success
@@ -471,19 +506,29 @@ def main():
         print_status("Using existing files", "info")
 
     # Step 2: Verify files
-    if not step2_verify_files():
+    if not step2_verify_files(selected_sources):
         print_status("File verification failed. Aborting workflow.", "error")
         sys.exit(1)
 
-    # Step 3: Process SSGA files
-    if not step3_process_ssga_files(args.database):
-        print_status("SSGA processing encountered errors", "warning")
-        success = False
+    # Step 3: Process SSGA files (skip if no SSGA sources selected)
+    ssga_selected = selected_sources & set(SSGA_FILES.keys())
+    if ssga_selected:
+        if not step3_process_ssga_files(args.database, selected_sources):
+            print_status("SSGA processing encountered errors", "warning")
+            success = False
+    else:
+        print_section("STEP 3: Processing SSGA Files (SKIPPED)")
+        print_status("No SSGA sources selected", "info")
 
-    # Step 4: Process Invesco files
-    if not step4_process_invesco_files(args.database):
-        print_status("Invesco processing encountered errors", "warning")
-        success = False
+    # Step 4: Process Invesco files (skip if no Invesco sources selected)
+    invesco_selected = selected_sources & set(INVESCO_TICKERS)
+    if invesco_selected:
+        if not step4_process_invesco_files(args.database, selected_sources):
+            print_status("Invesco processing encountered errors", "warning")
+            success = False
+    else:
+        print_section("STEP 4: Processing Invesco Files (SKIPPED)")
+        print_status("No Invesco sources selected", "info")
 
     # Step 5: Cleanup
     step5_cleanup(args.keep_files)
