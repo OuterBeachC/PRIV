@@ -34,17 +34,16 @@ SSGA_FILES = {
     "PRSD": "holdings-daily-us-en-prsd.xlsx"
 }
 
-INVESCO_TICKERS = ["GTOH", "GTO", "GTOC"]
+INVESCO_TICKERS = ["GTO", "GTOC"]
 
 # Invesco expected filenames (downloaded by WebSitechecker)
 INVESCO_FILES = {
-    "GTOH": "invesco_short_duration_high_yield_etf-monthly_holdings.csv",
     "GTO": "invesco_total_return_bond_etf-monthly_holdings.csv",
     "GTOC": "invesco_core_fixed_income_etf-monthly_holdings.csv"
 }
 
 # All valid source names (for --only flag)
-ALL_SOURCES = list(SSGA_FILES.keys()) + INVESCO_TICKERS  # ["PRIV", "PRSD", "GTOH", "GTO", "GTOC"]
+ALL_SOURCES = list(SSGA_FILES.keys()) + INVESCO_TICKERS  # ["PRIV", "PRSD", "GTO", "GTOC"]
 
 # Database configuration
 DEFAULT_DB = "priv_data.db"
@@ -278,7 +277,7 @@ def is_processed_csv(filename):
     import re
     basename = os.path.basename(filename)
     # Match pattern: 8 digits followed by uppercase letters, then .csv
-    # Example: 01072026GTOH.csv
+    # Example: 01072026GTO.csv
     pattern = r'^\d{8}[A-Z]+\.csv$'
     return bool(re.match(pattern, basename))
 
@@ -341,7 +340,6 @@ def step4_process_invesco_files(db_file, selected_sources=None):
         else:
             # Fallback: search by patterns in filename
             ticker_patterns = {
-                "GTOH": ["short_duration_high_yield", "gtoh", "hiys"],
                 "GTO": ["total_return_bond", "gto"],
                 "GTOC": ["core_fixed_income", "gtoc"]
             }
