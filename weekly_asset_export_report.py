@@ -202,7 +202,8 @@ def map_par_value_changes(df, available_dates, start_date, end_date):
 
         for i in range(1, len(group)):
             diff = diffs.iloc[i]
-            if diff != 0 and pd.notna(diff):
+            rounded_diff = round(diff, 2) if pd.notna(diff) else 0
+            if rounded_diff != 0:
                 row = group.iloc[i]
                 prev_row = group.iloc[i - 1]
                 changes.append(
@@ -212,7 +213,7 @@ def map_par_value_changes(df, available_dates, start_date, end_date):
                         "Identifier": row["identifier"],
                         "Par Value (Previous)": prev_row["par_value"],
                         "Par Value (Current)": row["par_value"],
-                        "Par Change": round(diff, 2),
+                        "Par Change": rounded_diff,
                         "Asset Type": row["asset_breakdown"],
                     }
                 )
@@ -309,44 +310,30 @@ def generate_report(db_path, funds, start_date, end_date):
 # ---------------------------------------------------------------------------
 
 
-def _fund_section_csv(f, fund, report):
-    """Write a single fund's section into the combined CSV."""
-    s = report["summary"]
-    f.write(f"# {fund} Report\n")
-    f.write(f"# Period: {s['start_date']} to {s['end_date']}\n")
-    f.write(f"# Observation Dates: {s['observation_dates']}\n")
-    f.write(f"# Total Market Value: ${s['total_market_value']:,.2f}\n")
-    f.write(f"# Total Par Value: ${s['total_par_value']:,.2f}\n")
-    f.write(f"# Securities Count: {s['securities_count']}\n")
-    f.write(f"# New Assets: {s['new_assets_count']}\n")
-    f.write(f"# Removed Assets: {s['removed_assets_count']}\n")
-    f.write(f"# Par Value Changes: {s['par_changes_count']}\n\n")
-
-    f.write(f"# {fund} - NEW ASSETS\n")
-    if not report["new_assets"].empty:
-        report["new_assets"].to_csv(f, index=False)
-    else:
-        f.write("# (none)\n")
-    f.write("\n")
-
-    f.write(f"# {fund} - REMOVED ASSETS\n")
-    if not report["removed_assets"].empty:
-        report["removed_assets"].to_csv(f, index=False)
-    else:
-        f.write("# (none)\n")
-    f.write("\n")
-
-    f.write(f"# {fund} - PAR VALUE CHANGES\n")
-    if not report["par_changes"].empty:
-        report["par_changes"].to_csv(f, index=False)
-    else:
-        f.write("# (none)\n")
-    f.write("\n")
+def _add_fund_column(df, fund):
+    """Return a copy of df with a Fund column inserted at position 0."""
+    out = df.copy()
+    out.insert(0, "Fund", fund)
+    return out
 
 
 def export_csv(reports, output_dir):
-    """Export reports as CSV files (per-fund + combined)."""
+    """
+    Export reports as clean, flat CSV files suitable for Datawrapper.
+
+    Produces:
+      - Per-fund CSVs:  new_assets_{FUND}_{range}.csv, etc.
+      - Combined CSVs:  new_assets_{range}.csv  (all funds, with Fund column)
+                        removed_assets_{range}.csv
+                        par_changes_{range}.csv
+    No comment lines, no blank rows.
+    """
     files = []
+
+    # Collect frames across funds for the combined files
+    all_new = []
+    all_removed = []
+    all_par = []
 
     for fund, report in reports.items():
         if "error" in report:
@@ -355,44 +342,55 @@ def export_csv(reports, output_dir):
         s = report["summary"]
         tag = f"{fund}_{s['start_date']}_to_{s['end_date']}"
 
-        # Individual section CSVs
+        # Per-fund section CSVs
         if not report["new_assets"].empty:
             path = os.path.join(output_dir, f"new_assets_{tag}.csv")
             report["new_assets"].to_csv(path, index=False)
             files.append(path)
+            all_new.append(_add_fund_column(report["new_assets"], fund))
 
         if not report["removed_assets"].empty:
             path = os.path.join(output_dir, f"removed_assets_{tag}.csv")
             report["removed_assets"].to_csv(path, index=False)
             files.append(path)
+            all_removed.append(_add_fund_column(report["removed_assets"], fund))
 
         if not report["par_changes"].empty:
             path = os.path.join(output_dir, f"par_changes_{tag}.csv")
             report["par_changes"].to_csv(path, index=False)
             files.append(path)
+            all_par.append(_add_fund_column(report["par_changes"], fund))
 
-    # Combined CSV
+    # Determine date tag from any successful report
     any_report = next(
         (r for r in reports.values() if "error" not in r), None
     )
-    if any_report:
-        s = any_report["summary"]
-        combined_path = os.path.join(
-            output_dir,
-            f"weekly_asset_report_{s['start_date']}_to_{s['end_date']}.csv",
-        )
-        with open(combined_path, "w") as f:
-            f.write(
-                f"# Weekly Asset Export Report: "
-                f"{s['start_date']} to {s['end_date']}\n\n"
-            )
-            for fund, report in reports.items():
-                if "error" in report:
-                    f.write(f"# {fund}: {report['error']}\n\n")
-                    continue
-                _fund_section_csv(f, fund, report)
-                f.write("\n")
-        files.append(combined_path)
+    if not any_report:
+        return files
+
+    s = any_report["summary"]
+    date_tag = f"{s['start_date']}_to_{s['end_date']}"
+
+    # Combined new assets (all funds)
+    if all_new:
+        combined = pd.concat(all_new, ignore_index=True)
+        path = os.path.join(output_dir, f"new_assets_{date_tag}.csv")
+        combined.to_csv(path, index=False)
+        files.append(path)
+
+    # Combined removed assets (all funds)
+    if all_removed:
+        combined = pd.concat(all_removed, ignore_index=True)
+        path = os.path.join(output_dir, f"removed_assets_{date_tag}.csv")
+        combined.to_csv(path, index=False)
+        files.append(path)
+
+    # Combined par value changes (all funds)
+    if all_par:
+        combined = pd.concat(all_par, ignore_index=True)
+        path = os.path.join(output_dir, f"par_changes_{date_tag}.csv")
+        combined.to_csv(path, index=False)
+        files.append(path)
 
     return files
 
