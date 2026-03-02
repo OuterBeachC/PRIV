@@ -31,24 +31,6 @@ def load_data(fund_symbol):
     finally:
         conn.close()
 
-@st.cache_data
-def load_gtoh_data():
-    """Load GTOH data merged with historical HIYS data, both labelled as GTOH."""
-    conn = sqlite3.connect("priv_data.db")
-    try:
-        df = pd.read_sql(
-            "SELECT * FROM financial_data WHERE source_identifier IN ('GTOH', 'HIYS')",
-            conn
-        )
-        df["date"] = pd.to_datetime(df["date"])
-        # Relabel historical HIYS rows as GTOH
-        df["source_identifier"] = "GTOH"
-        return df
-    except Exception as e:
-        st.error(f"Error loading GTOH data: {str(e)}")
-        return pd.DataFrame()
-    finally:
-        conn.close()
 
 # === Date Filter Section on Main Page ===
 st.markdown("---")
@@ -79,12 +61,8 @@ FUND_CONFIG = {
         "url": "https://www.ssga.com/us/en/intermediary/etfs/spdr-ssga-ig-public-private-credit-etf-priv"
     },
     "PRSD": {
-        "name": "State Street® Short Duration IG Public & Private Credit ETF", 
+        "name": "State Street® Short Duration IG Public & Private Credit ETF",
         "url": "https://www.ssga.com/us/en/intermediary/etfs/state-street-short-duration-ig-public-private-credit-etf-prsd"
-    },
-    "GTOH": {
-        "name": "Invesco High Yield Select ETF",
-        "url": "https://www.invesco.com/us/en/financial-products/etfs/invesco-high-yield-select-etf.html"
     }
 }
 
@@ -94,12 +72,12 @@ st.sidebar.header("🔄 Combined Export Menu")
 
 export_fund_selection = st.sidebar.radio(
     "Select Fund for Export",
-    ["PRIV", "PRSD", "GTOH"],
+    ["PRIV", "PRSD"],
     key="export_fund_selection"
 )
 
 # Load data for the selected export fund
-export_df = load_gtoh_data() if export_fund_selection == "GTOH" else load_data(export_fund_selection)
+export_df = load_data(export_fund_selection)
 
 # === Bulk Export Options for Combined Menu ===
 if not export_df.empty:
@@ -705,12 +683,11 @@ def render_fund_dashboard(fund_symbol, df, selected_date):
 # === Function to render AP Grange Pricing dashboard ===
 def render_hiys_comparison():
     st.markdown("### 🔄 AP Grange Pricing - Cross-Fund Price Comparison")
-    st.markdown("Compare the price (Market Value / Par Value × 100) of AP Grange Holdings LLC across PRIV, PRSD, GTOH, GTO, and GTOC funds.")
+    st.markdown("Compare the price (Market Value / Par Value × 100) of AP Grange Holdings LLC across PRIV, PRSD, GTO, and GTOC funds.")
 
-    # Load data for all five funds (GTOH merges historical HIYS data)
+    # Load data for all funds
     df_priv = load_data("PRIV")
     df_prsd = load_data("PRSD")
-    df_gtoh = load_gtoh_data()
     df_gto = load_data("GTO")
     df_gtoc = load_data("GTOC")
 
@@ -735,12 +712,11 @@ def render_hiys_comparison():
     # Get AP Grange data from each fund
     priv_ap_grange = get_ap_grange_data(df_priv, "PRIV")
     prsd_ap_grange = get_ap_grange_data(df_prsd, "PRSD")
-    gtoh_ap_grange = get_ap_grange_data(df_gtoh, "GTOH")
     gto_ap_grange = get_ap_grange_data(df_gto, "GTO")
     gtoc_ap_grange = get_ap_grange_data(df_gtoc, "GTOC")
 
     # Combine all data
-    all_ap_grange = pd.concat([priv_ap_grange, prsd_ap_grange, gtoh_ap_grange, gto_ap_grange, gtoc_ap_grange], ignore_index=True)
+    all_ap_grange = pd.concat([priv_ap_grange, prsd_ap_grange, gto_ap_grange, gtoc_ap_grange], ignore_index=True)
 
     if all_ap_grange.empty:
         st.warning("No AP Grange Holdings LLC data found in any fund.")
@@ -756,14 +732,13 @@ def render_hiys_comparison():
     st.markdown("---")
     st.subheader("📊 Current Price Comparison")
 
-    col1, col2, col3, col4, col5 = st.columns(5)
+    col1, col2, col3, col4 = st.columns(4)
 
     # Get latest price for each fund
     for col, fund_name, fund_df in [(col1, "PRIV", priv_ap_grange),
                                       (col2, "PRSD", prsd_ap_grange),
-                                      (col3, "GTOH", gtoh_ap_grange),
-                                      (col4, "GTO", gto_ap_grange),
-                                      (col5, "GTOC", gtoc_ap_grange)]:
+                                      (col3, "GTO", gto_ap_grange),
+                                      (col4, "GTOC", gtoc_ap_grange)]:
         with col:
             if not fund_df.empty:
                 # Sort by date and calculate pct change for this fund
@@ -788,7 +763,7 @@ def render_hiys_comparison():
 
     # Create a comparison table with latest data from each fund
     comparison_data = []
-    for fund_name, fund_df in [("PRIV", priv_ap_grange), ("PRSD", prsd_ap_grange), ("GTOH", gtoh_ap_grange), ("GTO", gto_ap_grange), ("GTOC", gtoc_ap_grange)]:
+    for fund_name, fund_df in [("PRIV", priv_ap_grange), ("PRSD", prsd_ap_grange), ("GTO", gto_ap_grange), ("GTOC", gtoc_ap_grange)]:
         if not fund_df.empty:
             # Sort and calculate pct change
             fund_df_sorted = fund_df.sort_values("date").copy()
@@ -857,8 +832,8 @@ def render_hiys_comparison():
             x=alt.X("date:T", title="Date", axis=alt.Axis(labelAngle=-45, format="%m/%d/%y")),
             y=alt.Y("price:Q", title="Price (MV/PV × 100)", scale=alt.Scale(zero=False)),
             color=alt.Color("fund:N", title="Fund", scale=alt.Scale(
-                domain=["PRIV", "PRSD", "GTOH", "GTO", "GTOC"],
-                range=["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd"]
+                domain=["PRIV", "PRSD", "GTO", "GTOC"],
+                range=["#1f77b4", "#ff7f0e", "#d62728", "#9467bd"]
             )),
             tooltip=[
                 alt.Tooltip("date:T", title="Date", format="%m/%d/%Y"),
@@ -881,8 +856,8 @@ def render_hiys_comparison():
                 x=alt.X("date:T", title="Date", axis=alt.Axis(labelAngle=-45, format="%m/%d/%y")),
                 y=alt.Y("price_pct_change:Q", title="Daily % Change", scale=alt.Scale(zero=False)),
                 color=alt.Color("fund:N", title="Fund", scale=alt.Scale(
-                    domain=["PRIV", "PRSD", "GTOH", "GTO", "GTOC"],
-                    range=["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd"]
+                    domain=["PRIV", "PRSD", "GTO", "GTOC"],
+                    range=["#1f77b4", "#ff7f0e", "#d62728", "#9467bd"]
                 )),
                 tooltip=[
                     alt.Tooltip("date:T", title="Date", format="%m/%d/%Y"),
@@ -941,7 +916,7 @@ def render_hiys_comparison():
     st.markdown("---")
     st.markdown("""
     **Disclosure:** All information displayed here is public and is not in any way to be construed as investment advice or solicitation.
-    Data is sourced from SSGA (PRIV, PRSD) and Invesco (GTOH, GTO, GTOC) and we make no claims to veracity or accuracy of the data.
+    Data is sourced from SSGA (PRIV, PRSD) and Invesco (GTO, GTOC) and we make no claims to veracity or accuracy of the data.
     It is presented for academic and research purposes only.
     """)
 
