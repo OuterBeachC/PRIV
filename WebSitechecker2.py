@@ -12,6 +12,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
+from selenium.common.exceptions import TimeoutException
 from webdriver_manager.chrome import ChromeDriverManager
 
 import pandas as pd
@@ -379,7 +380,9 @@ def _build_chrome_driver(download_dir: str, headless: bool = True) -> webdriver.
     chrome_options.add_experimental_option("prefs", prefs)
 
     service = Service(ChromeDriverManager().install())
-    return webdriver.Chrome(service=service, options=chrome_options)
+    driver = webdriver.Chrome(service=service, options=chrome_options)
+    driver.set_page_load_timeout(90)
+    return driver
 
 
 def _save_debug_artifacts(driver, download_dir: str, ticker: str):
@@ -969,7 +972,10 @@ def download_hilton_holdings(ticker: str, url: str, download_dir: str) -> str | 
         print("  Using Selenium for table extraction...")
         driver = _build_chrome_driver(download_dir, HEADLESS)
         try:
-            driver.get(url)
+            try:
+                driver.get(url)
+            except TimeoutException:
+                print("  [WARNING] Page load timed out; attempting extraction from partial load...")
             time.sleep(5)
             _accept_cookies_and_consent(driver)
             time.sleep(2)
