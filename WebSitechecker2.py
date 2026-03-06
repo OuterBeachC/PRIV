@@ -44,6 +44,10 @@ DOWNLOAD_DIR = os.getcwd()
 HEADLESS = True  # Set to False to see browser window for new tickers
 DATE_URL_LOOKBACK = 5  # Business days to look back for date-based URLs
 
+# WisdomTree uses Cloudflare; headless Chrome is reliably blocked.
+# Set to False to run the browser visibly (recommended for HYIN).
+HYIN_HEADLESS = False
+
 # New ticker URLs
 VANECK_BIZD_URL = "https://www.vaneck.com/us/en/investments/bdc-income-etf-bizd/holdings/"
 WISDOMTREE_HYIN_URL = "https://www.wisdomtree.com/investments/etfs/alternative/hyin#"
@@ -585,14 +589,26 @@ def download_vaneck_holdings(ticker: str, download_dir: str, headless: bool = Tr
 
 
 # =============================================================================
-# WISDOMTREE (HYIN) — Selenium: click ALL HOLDINGS → Export Holdings
+# WISDOMTREE (HYIN) — undetected-chromedriver: ALL HOLDINGS → Export Holdings
+#
+# WisdomTree is protected by Cloudflare, which blocks standard headless Chrome.
+# undetected-chromedriver patches Chrome's automation fingerprint so Cloudflare
+# does not trigger the "Please enable cookies" / "You have been blocked" page.
+# Running non-headless (HYIN_HEADLESS = False) is strongly recommended because
+# Cloudflare's headless detection is more aggressive than its visible-browser checks.
 # =============================================================================
 
-def download_wisdomtree_holdings(ticker: str, url: str, download_dir: str, headless: bool = True) -> str | None:
+def download_wisdomtree_holdings(ticker: str, url: str, download_dir: str, headless: bool = False) -> str | None:
     """
-    Download WisdomTree ETF holdings via Selenium.
+    Download WisdomTree ETF holdings using undetected-chromedriver to bypass Cloudflare.
     Steps: click 'ALL HOLDINGS' to expand full list, then click 'Export Holdings'.
     """
+    try:
+        import undetected_chromedriver as uc
+    except ImportError:
+        print("[ERROR] undetected-chromedriver not installed. Run: pip install undetected-chromedriver")
+        return None
+
     ticker = ticker.upper()
     os.makedirs(download_dir, exist_ok=True)
     download_dir = os.path.abspath(download_dir)
@@ -600,12 +616,32 @@ def download_wisdomtree_holdings(ticker: str, url: str, download_dir: str, headl
     _delete_old_files(download_dir, f"wisdomtree*{ticker.lower()}*.csv", f"wisdomtree*{ticker.lower()}*.xls*")
     existing_files = _snapshot_existing(download_dir)
 
-    print("Starting browser...")
-    driver = _build_chrome_driver(download_dir, headless)
+    print("Starting browser (undetected-chromedriver)...")
+    options = uc.ChromeOptions()
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--window-size=1920,1080")
+    options.add_experimental_option("prefs", {
+        "download.default_directory": download_dir,
+        "download.prompt_for_download": False,
+        "download.directory_upgrade": True,
+        "safebrowsing.enabled": True,
+    })
+
+    driver = uc.Chrome(options=options, headless=headless)
     try:
         print(f"Opening: {url}")
         driver.get(url)
-        time.sleep(6)
+        # Allow extra time for any Cloudflare JS challenge to resolve
+        time.sleep(10)
+
+        # Verify the page loaded (not a Cloudflare block page)
+        page_src = driver.page_source.lower()
+        if "you have been blocked" in page_src or ("enable cookies" in page_src and "cloudflare" in page_src):
+            print("[ERROR] Cloudflare block page detected. Try setting HYIN_HEADLESS = False "
+                  "and ensure undetected-chromedriver is up to date.")
+            _save_debug_artifacts(driver, download_dir, ticker)
+            return None
 
         _accept_cookies_and_consent(driver)
         time.sleep(2)
@@ -1163,7 +1199,7 @@ def check_and_download_all():
     new_results["BIZD"] = download_vaneck_holdings("BIZD", DOWNLOAD_DIR, HEADLESS)
 
     print("\n--- Checking HYIN (WisdomTree) ---")
-    new_results["HYIN"] = download_wisdomtree_holdings("HYIN", WISDOMTREE_HYIN_URL, DOWNLOAD_DIR, HEADLESS)
+    new_results["HYIN"] = download_wisdomtree_holdings("HYIN", WISDOMTREE_HYIN_URL, DOWNLOAD_DIR, HYIN_HEADLESS)
 
     print("\n--- Checking PBDC (Franklin Templeton) ---")
     new_results["PBDC"] = download_franklintempleton_holdings("PBDC", FRANKLINTEMPLETON_PBDC_URL, DOWNLOAD_DIR, HEADLESS)

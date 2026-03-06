@@ -17,6 +17,8 @@ requests>=2.32.5,<3.0.0
 # Browser automation (WebSitechecker.py / WebSitechecker2.py)
 selenium>=4.0.0
 webdriver-manager>=4.0.0
+# Cloudflare bypass for WisdomTree (HYIN)
+undetected-chromedriver>=3.5.0
 
 # Excel file support (WebSitechecker2.py — Simplify PCR XLSX parsing)
 openpyxl>=3.1.0
